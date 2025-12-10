@@ -94,3 +94,9 @@ export interface ProjectData {
   history: GeneratedImage[];
   lastConfig: GenerationConfig;
 }
+
+export interface StylePreset {
+  id: string;
+  name: string;
+  config: Partial<GenerationConfig>;
+}

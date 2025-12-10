@@ -1,22 +1,42 @@
 import React from 'react';
-import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig } from '../types';
+import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig, StylePreset } from '../types';
 import Button from './Button';
-import { Settings2, Camera, Expand, Sparkles, Image as ImageIcon, Box, Palette, Sun, Aperture, ZoomIn, Ban } from 'lucide-react';
+import { Settings2, Camera, Expand, Sparkles, Image as ImageIcon, Box, Palette, Sun, Aperture, ZoomIn, Ban, Lock, Unlock, Bookmark } from 'lucide-react';
 
 interface ControlsProps {
   config: GenerationConfig;
   onChange: (config: GenerationConfig) => void;
   onGenerate: () => void;
   isGenerating: boolean;
+  lockedKeys: string[];
+  onToggleLock: (key: keyof GenerationConfig) => void;
+  savedStyles: StylePreset[];
+  onSelectStyle: (style: StylePreset) => void;
 }
 
-const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGenerating }) => {
+const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGenerating, lockedKeys, onToggleLock, savedStyles, onSelectStyle }) => {
   
   const handleChange = <K extends keyof GenerationConfig>(key: K, value: GenerationConfig[K]) => {
     onChange({ ...config, [key]: value });
   };
 
   const selectClassName = "w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2.5 text-sm text-zinc-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none";
+
+  const renderLabel = (label: string, icon: React.ReactNode, configKey: keyof GenerationConfig) => (
+    <div className="flex items-center justify-between mb-2">
+      <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center">
+        {icon}
+        <span className="ml-2">{label}</span>
+      </label>
+      <button 
+        onClick={() => onToggleLock(configKey)} 
+        className={`p-1 rounded hover:bg-zinc-800 transition-colors ${lockedKeys.includes(configKey) ? 'text-indigo-400' : 'text-zinc-600'}`}
+        title={lockedKeys.includes(configKey) ? "Unlock setting" : "Lock setting for new projects"}
+      >
+        {lockedKeys.includes(configKey) ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+      </button>
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full bg-zinc-900 border-r border-zinc-800 w-full md:w-80 p-6 overflow-y-auto">
@@ -28,12 +48,35 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
       </div>
 
       <div className="space-y-6 flex-1">
+        {/* Saved Styles */}
+        {savedStyles.length > 0 && (
+          <div className="space-y-0 pb-4 border-b border-zinc-800/50 mb-2">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center">
+                <Bookmark className="w-3 h-3 mr-2" />
+                <span>Style Book</span>
+              </label>
+            </div>
+            <select
+              onChange={(e) => {
+                const style = savedStyles.find(s => s.id === e.target.value);
+                if (style) onSelectStyle(style);
+                e.target.value = ""; // Reset selector
+              }}
+              className={selectClassName}
+              defaultValue=""
+            >
+              <option value="" disabled>Select a style...</option>
+              {savedStyles.map((style) => (
+                <option key={style.id} value={style.id}>{style.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Model Selector */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center">
-            <Box className="w-3 h-3 mr-2" />
-            Model
-          </label>
+        <div className="space-y-0">
+          {renderLabel("Model", <Box className="w-3 h-3" />, 'modelId')}
           <select 
             value={config.modelId}
             onChange={(e) => handleChange('modelId', e.target.value as ModelId)}
@@ -46,11 +89,8 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
         </div>
 
         {/* Global Style Input */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center">
-            <Palette className="w-3 h-3 mr-2" />
-            Global Style
-          </label>
+        <div className="space-y-0">
+          {renderLabel("Global Style", <Palette className="w-3 h-3" />, 'globalStyle')}
           <textarea
             value={config.globalStyle}
             onChange={(e) => handleChange('globalStyle', e.target.value)}
@@ -60,11 +100,8 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
         </div>
 
         {/* Prompt Input */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center">
-            <Sparkles className="w-3 h-3 mr-2" />
-            Prompt
-          </label>
+        <div className="space-y-0">
+          {renderLabel("Prompt", <Sparkles className="w-3 h-3" />, 'prompt')}
           <textarea
             value={config.prompt}
             onChange={(e) => handleChange('prompt', e.target.value)}
@@ -74,11 +111,8 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
         </div>
 
         {/* Negative Prompt Input */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center">
-            <Ban className="w-3 h-3 mr-2" />
-            Negative Prompt
-          </label>
+        <div className="space-y-0">
+          {renderLabel("Negative Prompt", <Ban className="w-3 h-3" />, 'negativePrompt')}
           <textarea
             value={config.negativePrompt || ''}
             onChange={(e) => handleChange('negativePrompt', e.target.value)}
@@ -88,11 +122,8 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
         </div>
 
         {/* Perspective */}
-        <div className="space-y-2">
-           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center">
-            <Camera className="w-3 h-3 mr-2" />
-            Camera Perspective
-          </label>
+        <div className="space-y-0">
+          {renderLabel("Camera Perspective", <Camera className="w-3 h-3" />, 'perspective')}
           <select
             value={config.perspective}
             onChange={(e) => handleChange('perspective', e.target.value as Perspective)}
@@ -105,11 +136,8 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
         </div>
 
         {/* Lighting */}
-        <div className="space-y-2">
-           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center">
-            <Sun className="w-3 h-3 mr-2" />
-            Lighting
-          </label>
+        <div className="space-y-0">
+          {renderLabel("Lighting", <Sun className="w-3 h-3" />, 'lighting')}
           <select
             value={config.lighting}
             onChange={(e) => handleChange('lighting', e.target.value as Lighting)}
@@ -122,11 +150,8 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
         </div>
 
         {/* Lens */}
-        <div className="space-y-2">
-           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center">
-            <Aperture className="w-3 h-3 mr-2" />
-            Lens
-          </label>
+        <div className="space-y-0">
+          {renderLabel("Lens", <Aperture className="w-3 h-3" />, 'lens')}
           <select
             value={config.lens}
             onChange={(e) => handleChange('lens', e.target.value as Lens)}
@@ -139,11 +164,8 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
         </div>
 
         {/* Focal Length */}
-        <div className="space-y-2">
-           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center">
-            <ZoomIn className="w-3 h-3 mr-2" />
-            Focal Length
-          </label>
+        <div className="space-y-0">
+          {renderLabel("Focal Length", <ZoomIn className="w-3 h-3" />, 'focalLength')}
           <select
             value={config.focalLength}
             onChange={(e) => handleChange('focalLength', e.target.value as FocalLength)}
@@ -156,11 +178,8 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
         </div>
 
         {/* Aspect Ratio */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center">
-            <ImageIcon className="w-3 h-3 mr-2" />
-            Aspect Ratio
-          </label>
+        <div className="space-y-0">
+          {renderLabel("Aspect Ratio", <ImageIcon className="w-3 h-3" />, 'aspectRatio')}
           <select 
             value={config.aspectRatio}
             onChange={(e) => handleChange('aspectRatio', e.target.value as AspectRatio)}
@@ -173,11 +192,8 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
         </div>
 
         {/* Resolution - Only for Pro */}
-        <div className="space-y-2">
-          <label className={`text-xs font-semibold uppercase tracking-wider flex items-center ${config.modelId !== ModelId.GEMINI_3_PRO_IMAGE ? 'text-zinc-600' : 'text-zinc-400'}`}>
-            <Expand className="w-3 h-3 mr-2" />
-            Resolution
-          </label>
+        <div className="space-y-0">
+          {renderLabel("Resolution", <Expand className="w-3 h-3" />, 'resolution')}
           <div className="grid grid-cols-3 gap-2">
              {Object.values(Resolution).map((res) => (
                 <button

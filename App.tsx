@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import Controls from './components/Controls';
 import Gallery from './components/Gallery';
 import SaveModal from './components/SaveModal';
-import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig, GeneratedImage, ProjectData } from './types';
+import StyleModal from './components/StyleModal';
+import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig, GeneratedImage, ProjectData, StylePreset } from './types';
 import { generateImage } from './services/geminiService';
-import { Download, AlertCircle, X, FilePlus, FolderOpen, Save, HardDrive, Cloud } from 'lucide-react';
+import { Download, AlertCircle, X, FilePlus, FolderOpen, Save, HardDrive, Cloud, Plus } from 'lucide-react';
 
 const DEFAULT_CONFIG: GenerationConfig = {
   prompt: '',
@@ -23,15 +24,18 @@ const DEFAULT_PROJECT_NAME = "Untitled Project";
 
 function App() {
   const [config, setConfig] = useState<GenerationConfig>(DEFAULT_CONFIG);
+  const [lockedKeys, setLockedKeys] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentImage, setCurrentImage] = useState<GeneratedImage | null>(null);
   const [history, setHistory] = useState<GeneratedImage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
+  const [styleBook, setStyleBook] = useState<StylePreset[]>([]);
   
   // Project State
   const [projectName, setProjectName] = useState(DEFAULT_PROJECT_NAME);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load history/state from local storage on mount (Auto-restore)
@@ -44,6 +48,11 @@ function App() {
         setProjectName(data.name || DEFAULT_PROJECT_NAME);
         // Merge saved config with DEFAULT_CONFIG to ensure new fields (like lighting, lens, focalLength) are initialized
         if (data.lastConfig) setConfig({ ...DEFAULT_CONFIG, ...data.lastConfig });
+      }
+      
+      const savedStyles = localStorage.getItem('musebox_style_book');
+      if (savedStyles) {
+        setStyleBook(JSON.parse(savedStyles));
       }
     } catch (e) {
       console.error("Failed to load history", e);
@@ -60,6 +69,11 @@ function App() {
     };
     localStorage.setItem('musebox_current_project', JSON.stringify(projectData));
   }, [history, projectName, config]);
+
+  // Save StyleBook
+  useEffect(() => {
+    localStorage.setItem('musebox_style_book', JSON.stringify(styleBook));
+  }, [styleBook]);
 
   const handleGenerate = async () => {
     if (!config.prompt.trim()) return;
@@ -94,6 +108,45 @@ function App() {
     if (selectedImage?.id === id) setSelectedImage(null);
   };
 
+  const toggleLock = (key: keyof GenerationConfig) => {
+    setLockedKeys(prev => 
+      prev.includes(key) 
+        ? prev.filter(k => k !== key) 
+        : [...prev, key]
+    );
+  };
+
+  const applyAndToggleLock = (key: keyof GenerationConfig, value: any) => {
+    setConfig(prev => ({ ...prev, [key]: value }));
+    toggleLock(key);
+  };
+
+  // --- Style Book Functions ---
+
+  const handleSaveStyle = (name: string) => {
+    if (!currentImage) return;
+    
+    // Create config subset excluding prompt
+    const { prompt, ...styleConfig } = currentImage.config;
+    
+    const newStyle: StylePreset = {
+      id: crypto.randomUUID(),
+      name,
+      config: styleConfig
+    };
+
+    setStyleBook(prev => [...prev, newStyle]);
+    setIsStyleModalOpen(false);
+  };
+
+  const handleApplyStyle = (preset: StylePreset) => {
+    setConfig(prev => ({
+      ...prev,
+      ...preset.config,
+      prompt: prev.prompt // Preserve current prompt
+    }));
+  };
+
   // --- Project Management Functions ---
 
   const handleNewProject = () => {
@@ -104,9 +157,18 @@ function App() {
     }
     setHistory([]);
     setCurrentImage(null);
-    setConfig(DEFAULT_CONFIG);
     setProjectName(DEFAULT_PROJECT_NAME);
     setError(null);
+
+    // Reset config but keep locked fields
+    const newConfig = { ...DEFAULT_CONFIG };
+    lockedKeys.forEach(key => {
+        const k = key as keyof GenerationConfig;
+        // @ts-ignore - Dynamic assignment
+        newConfig[k] = config[k];
+    });
+
+    setConfig(newConfig);
   };
 
   const handleSaveClick = () => {
@@ -173,9 +235,6 @@ function App() {
   };
 
   const handleDriveClick = () => {
-    // Since this is a client-side only app without a backend to proxy keys or hold client secrets securely,
-    // and we cannot use the user's Google credentials directly without a configured Google Cloud Project Client ID,
-    // we guide the user to the local picker which can access Drive if installed.
     alert("To open from Google Drive, please ensure your Drive is synced to your computer, then select 'Open from System' and navigate to your Google Drive folder. \n\n(Direct API integration requires a configured Google Cloud Project Client ID).");
   };
 
@@ -196,12 +255,22 @@ function App() {
         initialName={projectName === DEFAULT_PROJECT_NAME ? "" : projectName}
       />
 
+      <StyleModal 
+        isOpen={isStyleModalOpen} 
+        onClose={() => setIsStyleModalOpen(false)} 
+        onConfirm={handleSaveStyle}
+      />
+
       {/* Sidebar Controls */}
       <Controls 
         config={config} 
         onChange={setConfig} 
         onGenerate={handleGenerate} 
-        isGenerating={isGenerating} 
+        isGenerating={isGenerating}
+        lockedKeys={lockedKeys}
+        onToggleLock={toggleLock}
+        savedStyles={styleBook}
+        onSelectStyle={handleApplyStyle}
       />
 
       {/* Main Content Area */}
@@ -288,27 +357,86 @@ function App() {
                 </div>
                 <div className="p-4 border-t border-zinc-800 bg-zinc-900">
                   <p className="text-zinc-100 font-medium mb-1">{currentImage.prompt}</p>
-                  <div className="flex flex-wrap gap-2 text-xs text-zinc-500">
-                    <span className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800">{currentImage.config.modelId}</span>
-                    <span className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800">{currentImage.config.aspectRatio}</span>
+                  <div className="flex flex-wrap gap-2 text-xs text-zinc-500 items-center">
+                    <button 
+                      onClick={() => applyAndToggleLock('modelId', currentImage.config.modelId)}
+                      className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 hover:border-zinc-500 hover:text-white transition-colors cursor-pointer"
+                      title="Apply & Lock Model"
+                    >
+                      {currentImage.config.modelId}
+                    </button>
+                    
+                    <button 
+                      onClick={() => applyAndToggleLock('aspectRatio', currentImage.config.aspectRatio)}
+                      className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 hover:border-zinc-500 hover:text-white transition-colors cursor-pointer"
+                      title="Apply & Lock Aspect Ratio"
+                    >
+                      {currentImage.config.aspectRatio}
+                    </button>
+
                     {currentImage.config.perspective && currentImage.config.perspective !== 'None' && (
-                       <span className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800">{currentImage.config.perspective}</span>
+                       <button 
+                         onClick={() => applyAndToggleLock('perspective', currentImage.config.perspective)}
+                         className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 hover:border-zinc-500 hover:text-white transition-colors cursor-pointer"
+                         title="Apply & Lock Perspective"
+                       >
+                         {currentImage.config.perspective}
+                       </button>
                     )}
                     {currentImage.config.lighting && currentImage.config.lighting !== 'None' && (
-                       <span className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800">{currentImage.config.lighting}</span>
+                       <button 
+                         onClick={() => applyAndToggleLock('lighting', currentImage.config.lighting)}
+                         className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 hover:border-zinc-500 hover:text-white transition-colors cursor-pointer"
+                         title="Apply & Lock Lighting"
+                       >
+                         {currentImage.config.lighting}
+                       </button>
                     )}
                     {currentImage.config.lens && currentImage.config.lens !== 'None' && (
-                       <span className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800">{currentImage.config.lens}</span>
+                       <button 
+                         onClick={() => applyAndToggleLock('lens', currentImage.config.lens)}
+                         className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 hover:border-zinc-500 hover:text-white transition-colors cursor-pointer"
+                         title="Apply & Lock Lens"
+                       >
+                         {currentImage.config.lens}
+                       </button>
                     )}
                     {currentImage.config.focalLength && currentImage.config.focalLength !== 'None' && (
-                       <span className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800">{currentImage.config.focalLength}</span>
+                       <button 
+                         onClick={() => applyAndToggleLock('focalLength', currentImage.config.focalLength)}
+                         className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 hover:border-zinc-500 hover:text-white transition-colors cursor-pointer"
+                         title="Apply & Lock Focal Length"
+                       >
+                         {currentImage.config.focalLength}
+                       </button>
                     )}
                     {currentImage.config.globalStyle && (
-                      <span className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 italic">{currentImage.config.globalStyle}</span>
+                      <button 
+                        onClick={() => applyAndToggleLock('globalStyle', currentImage.config.globalStyle)}
+                        className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 italic hover:bg-zinc-700 hover:border-zinc-500 hover:text-white transition-colors cursor-pointer"
+                        title="Apply & Lock Global Style"
+                      >
+                        {currentImage.config.globalStyle}
+                      </button>
                     )}
                     {currentImage.config.negativePrompt && (
-                      <span className="px-2 py-0.5 border border-red-900/50 rounded bg-red-900/10 text-red-400">No: {currentImage.config.negativePrompt}</span>
+                      <button 
+                        onClick={() => applyAndToggleLock('negativePrompt', currentImage.config.negativePrompt)}
+                        className="px-2 py-0.5 border border-red-900/50 rounded bg-red-900/10 text-red-400 hover:bg-red-900/20 hover:border-red-800 hover:text-red-300 transition-colors cursor-pointer"
+                        title="Apply & Lock Negative Prompt"
+                      >
+                        No: {currentImage.config.negativePrompt}
+                      </button>
                     )}
+
+                    <button
+                      onClick={() => setIsStyleModalOpen(true)}
+                      className="px-2 py-0.5 ml-2 border border-dashed border-zinc-600 rounded text-zinc-400 hover:text-white hover:border-zinc-400 hover:bg-zinc-800 transition-colors flex items-center"
+                      title="Save current settings to Style Book"
+                    >
+                      <Plus className="w-3 h-3 mr-1" />
+                      Style
+                    </button>
                   </div>
                 </div>
               </div>
