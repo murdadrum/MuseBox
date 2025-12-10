@@ -29,6 +29,42 @@ export enum Perspective {
   ISOMETRIC = 'Isometric'
 }
 
+export enum Lighting {
+  NONE = 'None',
+  CINEMATIC = 'Cinematic',
+  STUDIO = 'Studio',
+  NATURAL = 'Natural',
+  GOLDEN_HOUR = 'Golden Hour',
+  DRAMATIC = 'Dramatic',
+  NEON = 'Neon',
+  VOLUMETRIC = 'Volumetric',
+  LOW_KEY = 'Low Key'
+}
+
+export enum Lens {
+  NONE = 'None',
+  WIDE_24MM = '24mm',
+  STREET_35MM = '35mm',
+  STANDARD_50MM = '50mm',
+  PORTRAIT_85MM = '85mm',
+  TELEPHOTO_200MM = '200mm',
+  MACRO = 'Macro Lens',
+  FISHEYE = 'Fish-eye',
+  TILT_SHIFT = 'Tilt-Shift'
+}
+
+export enum FocalLength {
+  NONE = 'None',
+  ULTRA_WIDE_14MM = '14mm',
+  WIDE_24MM = '24mm',
+  STANDARD_35MM = '35mm',
+  NORMAL_50MM = '50mm',
+  PORTRAIT_85MM = '85mm',
+  TELEPHOTO_135MM = '135mm',
+  SUPER_TELE_200MM = '200mm',
+  EXTREME_400MM = '400mm'
+}
+
 export interface GenerationConfig {
   prompt: string;
   globalStyle: string;
@@ -36,6 +72,9 @@ export interface GenerationConfig {
   aspectRatio: AspectRatio;
   resolution: Resolution;
   perspective: Perspective;
+  lighting: Lighting;
+  lens: Lens;
+  focalLength: FocalLength;
   negativePrompt?: string;
 }
 

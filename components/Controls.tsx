@@ -1,7 +1,7 @@
 import React from 'react';
-import { ModelId, AspectRatio, Resolution, Perspective, GenerationConfig } from '../types';
+import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig } from '../types';
 import Button from './Button';
-import { Settings2, Camera, Expand, Sparkles, Image as ImageIcon, Box, Palette } from 'lucide-react';
+import { Settings2, Camera, Expand, Sparkles, Image as ImageIcon, Box, Palette, Sun, Aperture, ZoomIn, Ban } from 'lucide-react';
 
 interface ControlsProps {
   config: GenerationConfig;
@@ -15,6 +15,8 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
   const handleChange = <K extends keyof GenerationConfig>(key: K, value: GenerationConfig[K]) => {
     onChange({ ...config, [key]: value });
   };
+
+  const selectClassName = "w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2.5 text-sm text-zinc-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none";
 
   return (
     <div className="flex flex-col h-full bg-zinc-900 border-r border-zinc-800 w-full md:w-80 p-6 overflow-y-auto">
@@ -35,7 +37,7 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
           <select 
             value={config.modelId}
             onChange={(e) => handleChange('modelId', e.target.value as ModelId)}
-            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2.5 text-sm text-zinc-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none appearance-none"
+            className={selectClassName}
           >
             <option value={ModelId.GEMINI_2_5_FLASH_IMAGE}>Gemini 2.5 Flash</option>
             <option value={ModelId.GEMINI_3_PRO_IMAGE}>Gemini 3.0 Pro</option>
@@ -71,27 +73,86 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
           />
         </div>
 
+        {/* Negative Prompt Input */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center">
+            <Ban className="w-3 h-3 mr-2" />
+            Negative Prompt
+          </label>
+          <textarea
+            value={config.negativePrompt || ''}
+            onChange={(e) => handleChange('negativePrompt', e.target.value)}
+            placeholder="What to exclude (e.g. blur, distortion, text)..."
+            className="w-full h-20 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-2 focus:ring-red-900/50 focus:border-transparent outline-none resize-none"
+          />
+        </div>
+
         {/* Perspective */}
         <div className="space-y-2">
            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center">
             <Camera className="w-3 h-3 mr-2" />
             Camera Perspective
           </label>
-          <div className="grid grid-cols-2 gap-2">
+          <select
+            value={config.perspective}
+            onChange={(e) => handleChange('perspective', e.target.value as Perspective)}
+            className={selectClassName}
+          >
             {Object.values(Perspective).map((p) => (
-              <button
-                key={p}
-                onClick={() => handleChange('perspective', p)}
-                className={`px-3 py-2 rounded-md text-xs font-medium transition-colors border ${
-                  config.perspective === p
-                    ? 'bg-indigo-600/20 border-indigo-600 text-indigo-400'
-                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
-                }`}
-              >
-                {p}
-              </button>
+              <option key={p} value={p}>{p}</option>
             ))}
-          </div>
+          </select>
+        </div>
+
+        {/* Lighting */}
+        <div className="space-y-2">
+           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center">
+            <Sun className="w-3 h-3 mr-2" />
+            Lighting
+          </label>
+          <select
+            value={config.lighting}
+            onChange={(e) => handleChange('lighting', e.target.value as Lighting)}
+            className={selectClassName}
+          >
+            {Object.values(Lighting).map((l) => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Lens */}
+        <div className="space-y-2">
+           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center">
+            <Aperture className="w-3 h-3 mr-2" />
+            Lens
+          </label>
+          <select
+            value={config.lens}
+            onChange={(e) => handleChange('lens', e.target.value as Lens)}
+            className={selectClassName}
+          >
+            {Object.values(Lens).map((l) => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Focal Length */}
+        <div className="space-y-2">
+           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center">
+            <ZoomIn className="w-3 h-3 mr-2" />
+            Focal Length
+          </label>
+          <select
+            value={config.focalLength}
+            onChange={(e) => handleChange('focalLength', e.target.value as FocalLength)}
+            className={selectClassName}
+          >
+            {Object.values(FocalLength).map((f) => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
         </div>
 
         {/* Aspect Ratio */}
@@ -103,7 +164,7 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
           <select 
             value={config.aspectRatio}
             onChange={(e) => handleChange('aspectRatio', e.target.value as AspectRatio)}
-            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2.5 text-sm text-zinc-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none"
+            className={selectClassName}
           >
             {Object.entries(AspectRatio).map(([key, value]) => (
               <option key={key} value={value}>{value} ({key.replace(/_/g, ' ')})</option>

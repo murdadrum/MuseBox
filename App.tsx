@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Controls from './components/Controls';
 import Gallery from './components/Gallery';
 import SaveModal from './components/SaveModal';
-import { ModelId, AspectRatio, Resolution, Perspective, GenerationConfig, GeneratedImage, ProjectData } from './types';
+import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig, GeneratedImage, ProjectData } from './types';
 import { generateImage } from './services/geminiService';
 import { Download, AlertCircle, X, FilePlus, FolderOpen, Save, HardDrive, Cloud } from 'lucide-react';
 
@@ -13,6 +13,10 @@ const DEFAULT_CONFIG: GenerationConfig = {
   aspectRatio: AspectRatio.SQUARE,
   resolution: Resolution.RES_1K,
   perspective: Perspective.NONE,
+  lighting: Lighting.NONE,
+  lens: Lens.NONE,
+  focalLength: FocalLength.NONE,
+  negativePrompt: '',
 };
 
 const DEFAULT_PROJECT_NAME = "Untitled Project";
@@ -38,7 +42,8 @@ function App() {
         const data = JSON.parse(saved);
         setHistory(data.history || []);
         setProjectName(data.name || DEFAULT_PROJECT_NAME);
-        if (data.lastConfig) setConfig(data.lastConfig);
+        // Merge saved config with DEFAULT_CONFIG to ensure new fields (like lighting, lens, focalLength) are initialized
+        if (data.lastConfig) setConfig({ ...DEFAULT_CONFIG, ...data.lastConfig });
       }
     } catch (e) {
       console.error("Failed to load history", e);
@@ -156,7 +161,8 @@ function App() {
 
         setProjectName(data.name || "Imported Project");
         setHistory(data.history);
-        if (data.lastConfig) setConfig(data.lastConfig);
+        // Merge config to support older project files without new fields
+        if (data.lastConfig) setConfig({ ...DEFAULT_CONFIG, ...data.lastConfig });
         if (data.history.length > 0) setCurrentImage(data.history[0]);
         setError(null);
       } catch (err) {
@@ -288,8 +294,20 @@ function App() {
                     {currentImage.config.perspective && currentImage.config.perspective !== 'None' && (
                        <span className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800">{currentImage.config.perspective}</span>
                     )}
+                    {currentImage.config.lighting && currentImage.config.lighting !== 'None' && (
+                       <span className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800">{currentImage.config.lighting}</span>
+                    )}
+                    {currentImage.config.lens && currentImage.config.lens !== 'None' && (
+                       <span className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800">{currentImage.config.lens}</span>
+                    )}
+                    {currentImage.config.focalLength && currentImage.config.focalLength !== 'None' && (
+                       <span className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800">{currentImage.config.focalLength}</span>
+                    )}
                     {currentImage.config.globalStyle && (
                       <span className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 italic">{currentImage.config.globalStyle}</span>
+                    )}
+                    {currentImage.config.negativePrompt && (
+                      <span className="px-2 py-0.5 border border-red-900/50 rounded bg-red-900/10 text-red-400">No: {currentImage.config.negativePrompt}</span>
                     )}
                   </div>
                 </div>

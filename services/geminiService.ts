@@ -8,7 +8,7 @@ interface GenerateImageResult {
 }
 
 export const generateImage = async (config: GenerationConfig): Promise<GenerateImageResult> => {
-  const { modelId, prompt, aspectRatio, resolution, perspective, globalStyle } = config;
+  const { modelId, prompt, aspectRatio, resolution, perspective, lighting, lens, focalLength, globalStyle, negativePrompt } = config;
 
   // Construct enhanced prompt with perspective and global style
   let fullPrompt = prompt;
@@ -19,6 +19,23 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
 
   if (perspective && perspective !== 'None') {
     fullPrompt = `${perspective} shot of ${fullPrompt}`;
+  }
+
+  if (lighting && lighting !== 'None') {
+    fullPrompt = `${fullPrompt}, ${lighting} lighting`;
+  }
+
+  if (lens && lens !== 'None') {
+    fullPrompt = `${fullPrompt}, shot with ${lens} lens`;
+  }
+  
+  if (focalLength && focalLength !== 'None') {
+    fullPrompt = `${fullPrompt}, focal length ${focalLength}`;
+  }
+
+  // Append negative prompt instructions if present
+  if (negativePrompt && negativePrompt.trim()) {
+    fullPrompt = `${fullPrompt}. Do not include: ${negativePrompt}`;
   }
 
   try {
