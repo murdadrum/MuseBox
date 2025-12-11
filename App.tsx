@@ -3,7 +3,7 @@ import Controls from './components/Controls';
 import Gallery from './components/Gallery';
 import SaveModal from './components/SaveModal';
 import StyleModal from './components/StyleModal';
-import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig, GeneratedImage, ProjectData, StylePreset } from './types';
+import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig, GeneratedImage, ProjectData, StylePreset, StudioMode } from './types';
 import { generateImage } from './services/geminiService';
 import { Download, AlertCircle, X, FilePlus, FolderOpen, Save, HardDrive, Cloud, Plus } from 'lucide-react';
 
@@ -31,6 +31,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [styleBook, setStyleBook] = useState<StylePreset[]>([]);
+  const [mode, setMode] = useState<StudioMode>(StudioMode.IMAGE);
   
   // Project State
   const [projectName, setProjectName] = useState(DEFAULT_PROJECT_NAME);
@@ -271,6 +272,8 @@ function App() {
         onToggleLock={toggleLock}
         savedStyles={styleBook}
         onSelectStyle={handleApplyStyle}
+        mode={mode}
+        onModeChange={setMode}
       />
 
       {/* Main Content Area */}
@@ -326,13 +329,45 @@ function App() {
         {/* Workspace Content */}
         <div className="flex-1 overflow-y-auto p-8 scroll-smooth">
           
-          {/* Error Message */}
+          {/* Enhanced Error Display */}
           {error && (
-             <div className="mb-6 p-4 bg-red-900/20 border border-red-800/50 rounded-lg flex items-center text-red-200 animate-in fade-in slide-in-from-top-2">
-                <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
-                <button onClick={() => setError(null)} className="ml-auto hover:text-white"><X className="w-4 h-4"/></button>
-             </div>
+            <div className="mb-6 rounded-lg bg-red-950/30 border border-red-900/50 p-4 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-start">
+                <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 mr-3 flex-shrink-0" />
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-red-200">Generation Failed</h3>
+                  <p className="mt-1 text-sm text-red-300/90">{error}</p>
+                  
+                  {/* Contextual troubleshooting tips */}
+                  {(error.toLowerCase().includes('quota') || error.includes('429')) && (
+                     <div className="mt-3 text-xs text-red-400 bg-red-950/50 p-2 rounded border border-red-900/30">
+                        <strong>Troubleshooting:</strong> You may have exceeded your API quota. Please check your billing status or wait a moment before trying again.
+                     </div>
+                  )}
+                  {(error.toLowerCase().includes('safety') || error.toLowerCase().includes('blocked') || error.toLowerCase().includes('harmful')) && (
+                     <div className="mt-3 text-xs text-red-400 bg-red-950/50 p-2 rounded border border-red-900/30">
+                        <strong>Troubleshooting:</strong> The prompt may have triggered safety filters. Try adjusting your prompt or negative prompt to be less explicit, or try a different model.
+                     </div>
+                  )}
+                  {(error.toLowerCase().includes('key') || error.includes('401') || error.includes('403')) && (
+                     <div className="mt-3 text-xs text-red-400 bg-red-950/50 p-2 rounded border border-red-900/30">
+                        <strong>Troubleshooting:</strong> There seems to be an issue with your API key. Please check your configuration and ensure the key is valid and has access to the selected model.
+                     </div>
+                  )}
+                  {!error.toLowerCase().match(/(quota|429|safety|blocked|harmful|key|401|403)/) && (
+                     <div className="mt-3 text-xs text-red-400 bg-red-950/50 p-2 rounded border border-red-900/30">
+                        <strong>Tip:</strong> Try simplifying your prompt, switching models, or checking your internet connection.
+                     </div>
+                  )}
+                </div>
+                <button 
+                  onClick={() => setError(null)} 
+                  className="ml-3 text-red-400 hover:text-red-200 transition-colors p-1"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
           )}
 
           {/* Main Preview */}

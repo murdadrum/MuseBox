@@ -65,6 +65,12 @@ export enum FocalLength {
   EXTREME_400MM = '400mm'
 }
 
+export enum StudioMode {
+  IMAGE = 'Image',
+  BOARD = 'Board',
+  VIDEO = 'Video'
+}
+
 export interface GenerationConfig {
   prompt: string;
   globalStyle: string;
