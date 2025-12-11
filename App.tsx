@@ -5,7 +5,7 @@ import SaveModal from './components/SaveModal';
 import StyleModal from './components/StyleModal';
 import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig, GeneratedImage, ProjectData, StylePreset, StudioMode } from './types';
 import { generateImage } from './services/geminiService';
-import { Download, AlertCircle, X, FilePlus, FolderOpen, Save, HardDrive, Cloud, Plus } from 'lucide-react';
+import { Download, AlertCircle, X, FilePlus, FolderOpen, Save, HardDrive, Cloud, Plus, PanelLeft } from 'lucide-react';
 
 const DEFAULT_CONFIG: GenerationConfig = {
   prompt: '',
@@ -32,6 +32,9 @@ function App() {
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [styleBook, setStyleBook] = useState<StylePreset[]>([]);
   const [mode, setMode] = useState<StudioMode>(StudioMode.IMAGE);
+  
+  // UI State
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
   // Project State
   const [projectName, setProjectName] = useState(DEFAULT_PROJECT_NAME);
@@ -95,6 +98,11 @@ function App() {
 
       setCurrentImage(newImage);
       setHistory(prev => [newImage, ...prev]);
+      
+      // On mobile, automatically close sidebar to show result
+      if (window.innerWidth < 768) {
+        setIsSidebarOpen(false);
+      }
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Failed to generate image. Please try again.");
@@ -263,24 +271,36 @@ function App() {
       />
 
       {/* Sidebar Controls */}
-      <Controls 
-        config={config} 
-        onChange={setConfig} 
-        onGenerate={handleGenerate} 
-        isGenerating={isGenerating}
-        lockedKeys={lockedKeys}
-        onToggleLock={toggleLock}
-        savedStyles={styleBook}
-        onSelectStyle={handleApplyStyle}
-        mode={mode}
-        onModeChange={setMode}
-      />
+      {isSidebarOpen && (
+        <div className="fixed inset-0 z-50 md:relative md:z-0 md:inset-auto md:h-full md:w-80 flex-shrink-0">
+          <Controls 
+            config={config} 
+            onChange={setConfig} 
+            onGenerate={handleGenerate} 
+            isGenerating={isGenerating}
+            lockedKeys={lockedKeys}
+            onToggleLock={toggleLock}
+            savedStyles={styleBook}
+            onSelectStyle={handleApplyStyle}
+            mode={mode}
+            onModeChange={setMode}
+            onClose={() => setIsSidebarOpen(false)}
+          />
+        </div>
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
         {/* Header / Top Bar */}
         <header className="h-16 border-b border-zinc-800 bg-zinc-950/50 backdrop-blur-sm flex items-center justify-between px-6 z-10 sticky top-0">
           <div className="flex items-center space-x-4">
+             <button 
+               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+               className="p-2 -ml-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-md transition-colors"
+               title={isSidebarOpen ? "Close Sidebar" : "Open Sidebar"}
+             >
+               <PanelLeft className="w-5 h-5" />
+             </button>
              <div className="flex flex-col">
                <h2 className="text-sm font-medium text-white tracking-wide">{projectName}</h2>
                <span className="text-xs text-zinc-500">{history.length} assets in project</span>

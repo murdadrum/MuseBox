@@ -1,7 +1,7 @@
 import React from 'react';
 import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig, StylePreset, StudioMode } from '../types';
 import Button from './Button';
-import { Settings2, Camera, Expand, Sparkles, Image as ImageIcon, Box, Palette, Sun, Aperture, ZoomIn, Ban, Lock, Unlock, Bookmark, LayoutDashboard, Video } from 'lucide-react';
+import { Settings2, Camera, Expand, Sparkles, Image as ImageIcon, Box, Palette, Sun, Aperture, ZoomIn, Ban, Lock, Unlock, Bookmark, LayoutDashboard, Video, X } from 'lucide-react';
 
 interface ControlsProps {
   config: GenerationConfig;
@@ -14,9 +14,10 @@ interface ControlsProps {
   onSelectStyle: (style: StylePreset) => void;
   mode: StudioMode;
   onModeChange: (mode: StudioMode) => void;
+  onClose: () => void;
 }
 
-const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGenerating, lockedKeys, onToggleLock, savedStyles, onSelectStyle, mode, onModeChange }) => {
+const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGenerating, lockedKeys, onToggleLock, savedStyles, onSelectStyle, mode, onModeChange, onClose }) => {
   
   const handleChange = <K extends keyof GenerationConfig>(key: K, value: GenerationConfig[K]) => {
     onChange({ ...config, [key]: value });
@@ -42,11 +43,20 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
 
   return (
     <div className="flex flex-col h-full bg-zinc-900 border-r border-zinc-800 w-full md:w-80 p-6 overflow-y-auto">
-      <div className="mb-6 flex items-center space-x-2">
-        <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-          <Sparkles className="text-white w-5 h-5" />
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+            <Sparkles className="text-white w-5 h-5" />
+          </div>
+          <h1 className="text-xl font-bold tracking-tight text-white">MuseBox</h1>
         </div>
-        <h1 className="text-xl font-bold tracking-tight text-white">MuseBox</h1>
+        <button 
+          onClick={onClose}
+          className="md:hidden p-2 text-zinc-400 hover:text-white rounded-md hover:bg-zinc-800 transition-colors"
+          title="Close Menu"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Mode Switcher */}
@@ -260,7 +270,12 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
       {mode === StudioMode.IMAGE && (
         <div className="pt-6 mt-6 border-t border-zinc-800">
           <Button 
-            onClick={onGenerate} 
+            onClick={() => {
+              onGenerate();
+              // Optionally close on mobile after generating, 
+              // but user might want to generate multiple variations.
+              // Let's keep it open.
+            }} 
             isLoading={isGenerating} 
             className="w-full py-3 text-sm uppercase tracking-wide"
             disabled={!config.prompt.trim()}
