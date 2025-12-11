@@ -123,6 +123,7 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
               <option value={ModelId.GEMINI_2_5_FLASH_IMAGE}>Gemini 2.5 Flash</option>
               <option value={ModelId.GEMINI_3_PRO_IMAGE}>Gemini 3.0 Pro</option>
               <option value={ModelId.IMAGEN_4}>Imagen 3 (Preview)</option>
+              <option value={ModelId.GEMINI_2_0_FLASH_EXP} className="text-zinc-400">Gemini 2.0 Flash (Dev/Draft)</option>
             </select>
           </div>
 

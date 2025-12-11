@@ -8,6 +8,10 @@ interface GenerateImageResult {
 }
 
 export const generateImage = async (config: GenerationConfig): Promise<GenerateImageResult> => {
+  if (!process.env.API_KEY) {
+    throw new Error("API Key is missing. Please check your environment configuration.");
+  }
+
   const { modelId, prompt, aspectRatio, resolution, perspective, lighting, lens, focalLength, globalStyle, negativePrompt } = config;
 
   // Construct enhanced prompt with perspective and global style
@@ -39,6 +43,7 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
   }
 
   try {
+    // 1. Imagen Models
     if (modelId === ModelId.IMAGEN_4) {
       // Use generateImages for Imagen models
       const response = await ai.models.generateImages({
@@ -57,8 +62,35 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
       }
       return { url: `data:image/jpeg;base64,${base64EncodeString}` };
 
+    } else if (modelId === ModelId.GEMINI_2_0_FLASH_EXP) {
+      // 2. Dev / Draft Model (Text-to-SVG)
+      // Special handler for "Dev/Draft" model which is text-only/multimodal but not native image gen.
+      // We ask it to generate an SVG placeholder code.
+      const svgPrompt = `Generate a simple, minimalist SVG code representing this scene: "${fullPrompt}".
+      Use simple shapes and flat colors. The SVG should be abstract and artistic.
+      Return ONLY the raw SVG code starting with <svg and ending with </svg>. Do not wrap it in markdown code blocks.`;
+
+      const response = await ai.models.generateContent({
+        model: modelId,
+        contents: {
+          parts: [{ text: svgPrompt }],
+        },
+      });
+
+      const text = response.text || "";
+      const svgMatch = text.match(/<svg[\s\S]*?<\/svg>/);
+
+      if (svgMatch) {
+        const svgContent = svgMatch[0];
+        // Encode to base64 to display as image (handling utf8 via unescape)
+        const base64Svg = btoa(unescape(encodeURIComponent(svgContent)));
+        return { url: `data:image/svg+xml;base64,${base64Svg}` };
+      }
+      
+      throw new Error("Model generated text but no valid SVG found for placeholder.");
+
     } else {
-      // Use generateContent for Gemini models (Nano Banana series)
+      // 3. Gemini Image Models (Nano Banana series / Pro)
       
       // Prepare imageConfig. Note: imageSize only for gemini-3-pro-image-preview
       const imageConfig: any = {
@@ -94,8 +126,30 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
       
       throw new Error("No image inline data found in response.");
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Image generation failed:", error);
-    throw error;
+    
+    // Parse JSON error messages if present
+    let finalMessage = error.message || "Unknown error occurred";
+    
+    // Try to parse JSON error strings (common with 403/400 responses from SDK)
+    if (typeof finalMessage === 'string' && finalMessage.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(finalMessage);
+        if (parsed.error && parsed.error.message) {
+          finalMessage = parsed.error.message;
+          // Handle explicit 403 from the parsed body
+          if (parsed.error.code === 403 || parsed.error.status === 'PERMISSION_DENIED') {
+            finalMessage = `Permission Denied: Your API key does not have access to the model '${modelId}'. Please select a different model or check your Google Cloud Console permissions.`;
+          }
+        }
+      } catch (e) {
+        // Fallback to original message if parse fails
+      }
+    } else if (finalMessage.includes("403") || finalMessage.includes("Permission denied")) {
+        finalMessage = `Permission Denied: Your API key does not have access to the model '${modelId}'.`;
+    }
+
+    throw new Error(finalMessage);
   }
 };
