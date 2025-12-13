@@ -1,7 +1,7 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig, StylePreset, StudioMode } from '../types';
 import Button from './Button';
-import { Settings2, Camera, Expand, Sparkles, Image as ImageIcon, Box, Palette, Sun, Aperture, ZoomIn, Ban, Lock, Unlock, Bookmark, LayoutDashboard, Video, X, Upload } from 'lucide-react';
+import { Settings2, Camera, Expand, Sparkles, Image as ImageIcon, Box, Palette, Sun, Aperture, ZoomIn, Ban, Lock, Unlock, Bookmark, LayoutDashboard, Video, X, Upload, Loader2, Dices } from 'lucide-react';
 
 interface ControlsProps {
   config: GenerationConfig;
@@ -19,22 +19,69 @@ interface ControlsProps {
 
 const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGenerating, lockedKeys, onToggleLock, savedStyles, onSelectStyle, mode, onModeChange, onClose }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
   
   const handleChange = <K extends keyof GenerationConfig>(key: K, value: GenerationConfig[K]) => {
     onChange({ ...config, [key]: value });
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+  const processImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        handleChange('styleReferenceImage', reader.result as string);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxSize = 800; // Resize to max 800px to save tokens and local storage
+          
+          if (width > height) {
+            if (width > maxSize) {
+              height *= maxSize / width;
+              width = maxSize;
+            }
+          } else {
+            if (height > maxSize) {
+              width *= maxSize / height;
+              height = maxSize;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          // Compress to JPEG 0.8 quality
+          resolve(canvas.toDataURL('image/jpeg', 0.8));
+        };
+        img.src = e.target?.result as string;
       };
       reader.readAsDataURL(file);
+    });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setIsProcessingImage(true);
+      try {
+        const optimizedImage = await processImage(file);
+        handleChange('styleReferenceImage', optimizedImage);
+      } catch (error) {
+        console.error("Failed to process image", error);
+      } finally {
+        setIsProcessingImage(false);
+      }
     }
     // Reset value to allow re-uploading same file if needed
     if (e.target) e.target.value = '';
+  };
+
+  const handleRandomizeSeed = () => {
+    // Generate a random 32-bit integer
+    const newSeed = Math.floor(Math.random() * 2147483647);
+    handleChange('seed', newSeed);
   };
 
   const selectClassName = "w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2.5 text-sm text-zinc-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none";
@@ -144,12 +191,17 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
           {/* Style Reference Image */}
           <div className="space-y-0">
             {renderLabel("Style Reference", <ImageIcon className="w-3 h-3" />, 'styleReferenceImage')}
-            {config.styleReferenceImage ? (
+            {isProcessingImage ? (
+                <div className="w-full h-32 border border-zinc-800 rounded-lg flex flex-col items-center justify-center bg-zinc-950/50">
+                    <Loader2 className="w-5 h-5 text-indigo-500 animate-spin mb-2" />
+                    <span className="text-[10px] text-zinc-500">Processing...</span>
+                </div>
+            ) : config.styleReferenceImage ? (
                 <div className="relative w-full h-32 rounded-lg overflow-hidden border border-zinc-800 group bg-zinc-950">
                     <img src={config.styleReferenceImage} alt="Reference" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
                     <button
                         onClick={() => handleChange('styleReferenceImage', undefined)}
-                        className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-md hover:bg-red-500/80 transition-colors"
+                        className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-red-500/90 text-white rounded-md backdrop-blur-sm transition-colors opacity-0 group-hover:opacity-100"
                         title="Remove Reference"
                     >
                         <X className="w-3 h-3" />
@@ -182,6 +234,30 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
               placeholder="e.g. Cyberpunk, Oil Painting, Minimalist, Cinematic Lighting..."
               className="w-full h-20 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none resize-none"
             />
+          </div>
+
+          {/* Seed Input */}
+          <div className="space-y-0">
+             {renderLabel("Seed", <Dices className="w-3 h-3" />, 'seed')}
+             <div className="flex space-x-2">
+                <input
+                  type="number"
+                  value={config.seed ?? ''}
+                  onChange={(e) => {
+                      const val = e.target.value === '' ? undefined : parseInt(e.target.value);
+                      handleChange('seed', val);
+                  }}
+                  placeholder="Random (-1)"
+                  className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2.5 text-sm text-zinc-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none"
+                />
+                <button
+                  onClick={handleRandomizeSeed}
+                  className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 rounded-lg border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200 transition-colors"
+                  title="Randomize Seed"
+                >
+                  <Dices className="w-4 h-4" />
+                </button>
+             </div>
           </div>
 
           {/* Prompt Input */}

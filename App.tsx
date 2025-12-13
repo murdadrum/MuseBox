@@ -11,6 +11,7 @@ const DEFAULT_CONFIG: GenerationConfig = {
   prompt: '',
   globalStyle: '',
   styleReferenceImage: undefined,
+  seed: undefined,
   modelId: ModelId.GEMINI_2_5_FLASH_IMAGE,
   aspectRatio: AspectRatio.SQUARE,
   resolution: Resolution.RES_1K,
@@ -59,6 +60,11 @@ function App() {
       if (savedStyles) {
         setStyleBook(JSON.parse(savedStyles));
       }
+
+      const savedLocks = localStorage.getItem('musebox_locked_keys');
+      if (savedLocks) {
+        setLockedKeys(JSON.parse(savedLocks));
+      }
     } catch (e) {
       console.error("Failed to load history", e);
     }
@@ -66,18 +72,36 @@ function App() {
 
   // Autosave to localStorage
   useEffect(() => {
-    const projectData = {
-      name: projectName,
-      history,
-      lastConfig: config,
-      lastModified: Date.now()
-    };
-    localStorage.setItem('musebox_current_project', JSON.stringify(projectData));
+    try {
+      const projectData = {
+        name: projectName,
+        history,
+        lastConfig: config,
+        lastModified: Date.now()
+      };
+      localStorage.setItem('musebox_current_project', JSON.stringify(projectData));
+    } catch (e) {
+      console.warn("Failed to autosave project to localStorage (Quota exceeded?)", e);
+      // We could set a warning state here if we want to notify the user
+    }
   }, [history, projectName, config]);
+
+  // Save Locked Keys
+  useEffect(() => {
+    try {
+      localStorage.setItem('musebox_locked_keys', JSON.stringify(lockedKeys));
+    } catch (e) {
+      console.warn("Failed to save locked keys", e);
+    }
+  }, [lockedKeys]);
 
   // Save StyleBook
   useEffect(() => {
-    localStorage.setItem('musebox_style_book', JSON.stringify(styleBook));
+    try {
+      localStorage.setItem('musebox_style_book', JSON.stringify(styleBook));
+    } catch (e) {
+      console.warn("Failed to save style book", e);
+    }
   }, [styleBook]);
 
   const handleGenerate = async () => {
@@ -89,16 +113,31 @@ function App() {
     try {
       const result = await generateImage(config);
       
+      // If fallback occurred, result.modelId will be different from config.modelId
+      const finalConfig = { ...config };
+      if (result.modelId) {
+        finalConfig.modelId = result.modelId;
+      }
+
       const newImage: GeneratedImage = {
         id: crypto.randomUUID(),
         url: result.url,
         prompt: config.prompt,
-        config: { ...config },
+        config: finalConfig,
         timestamp: Date.now(),
       };
 
       setCurrentImage(newImage);
       setHistory(prev => [newImage, ...prev]);
+      
+      // If a fallback happened, notify the user via a temporary non-blocking error/toast mechanism or just update the state
+      if (config.modelId !== finalConfig.modelId) {
+         // Optionally update the UI selector to match what was actually used
+         if (!lockedKeys.includes('modelId')) {
+             setConfig(prev => ({ ...prev, modelId: finalConfig.modelId }));
+         }
+         setError(`Note: Switched to ${finalConfig.modelId} because ${config.modelId} was unavailable.`);
+      }
       
       // On mobile, automatically close sidebar to show result
       if (window.innerWidth < 768) {
@@ -150,11 +189,27 @@ function App() {
   };
 
   const handleApplyStyle = (preset: StylePreset) => {
-    setConfig(prev => ({
-      ...prev,
-      ...preset.config,
-      prompt: prev.prompt // Preserve current prompt
-    }));
+    setConfig(prev => {
+      // Start with a copy of the current configuration
+      const nextConfig = { ...prev };
+      
+      // Apply values from the style preset
+      Object.entries(preset.config).forEach(([k, value]) => {
+        const key = k as keyof GenerationConfig;
+        
+        // Never overwrite prompt
+        if (key === 'prompt') return;
+        
+        // Respect locked keys: if a key is locked, do NOT overwrite it with the preset value
+        if (lockedKeys.includes(key)) return;
+        
+        // Apply the value
+        // @ts-ignore
+        nextConfig[key] = value;
+      });
+      
+      return nextConfig;
+    });
   };
 
   // --- Project Management Functions ---
@@ -480,6 +535,15 @@ function App() {
                           <span className="w-2 h-2 rounded-full bg-indigo-500 mr-2"></span>
                           Image Reference Used
                        </div>
+                    )}
+                    {currentImage.config.seed !== undefined && (
+                      <button 
+                        onClick={() => applyAndToggleLock('seed', currentImage.config.seed)}
+                        className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 hover:border-zinc-500 hover:text-white transition-colors cursor-pointer"
+                        title="Apply & Lock Seed"
+                      >
+                        Seed: {currentImage.config.seed}
+                      </button>
                     )}
                     {currentImage.config.negativePrompt && (
                       <button 

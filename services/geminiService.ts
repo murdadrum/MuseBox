@@ -3,8 +3,9 @@ import { ModelId, GenerationConfig, Resolution, AspectRatio } from '../types';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-interface GenerateImageResult {
+export interface GenerateImageResult {
   url: string;
+  modelId?: ModelId;
 }
 
 export const generateImage = async (config: GenerationConfig): Promise<GenerateImageResult> => {
@@ -12,7 +13,7 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
     throw new Error("API Key is missing. Please check your environment configuration.");
   }
 
-  const { modelId, prompt, aspectRatio, resolution, perspective, lighting, lens, focalLength, globalStyle, negativePrompt, styleReferenceImage } = config;
+  const { modelId, prompt, aspectRatio, resolution, perspective, lighting, lens, focalLength, globalStyle, negativePrompt, styleReferenceImage, seed } = config;
 
   // Construct enhanced prompt with perspective and global style
   let fullPrompt = prompt;
@@ -55,6 +56,7 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
           numberOfImages: 1,
           outputMimeType: 'image/jpeg',
           aspectRatio: aspectRatio,
+          // Seed might not be supported in this SDK wrapper for generateImages yet, or assumes different config structure
         },
       });
 
@@ -62,7 +64,7 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
       if (!base64EncodeString) {
         throw new Error("No image data returned from Imagen.");
       }
-      return { url: `data:image/jpeg;base64,${base64EncodeString}` };
+      return { url: `data:image/jpeg;base64,${base64EncodeString}`, modelId };
 
     } else if (modelId === ModelId.GEMINI_2_0_FLASH_EXP) {
       // 2. Dev / Draft Model (Text-to-SVG)
@@ -95,6 +97,9 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
         contents: {
           parts: parts,
         },
+        config: {
+          seed: seed,
+        }
       });
 
       const text = response.text || "";
@@ -104,7 +109,7 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
         const svgContent = svgMatch[0];
         // Encode to base64 to display as image (handling utf8 via unescape)
         const base64Svg = btoa(unescape(encodeURIComponent(svgContent)));
-        return { url: `data:image/svg+xml;base64,${base64Svg}` };
+        return { url: `data:image/svg+xml;base64,${base64Svg}`, modelId };
       }
       
       throw new Error("Model generated text but no valid SVG found for placeholder.");
@@ -143,6 +148,7 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
         },
         config: {
           imageConfig: imageConfig,
+          seed: seed,
         },
       });
 
@@ -155,7 +161,7 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
       for (const part of contentParts) {
         if (part.inlineData && part.inlineData.data) {
            const mimeType = part.inlineData.mimeType || 'image/png';
-           return { url: `data:${mimeType};base64,${part.inlineData.data}` };
+           return { url: `data:${mimeType};base64,${part.inlineData.data}`, modelId };
         }
       }
       
@@ -166,23 +172,47 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
     
     // Parse JSON error messages if present
     let finalMessage = error.message || "Unknown error occurred";
+    let isPermissionError = false;
     
-    // Try to parse JSON error strings (common with 403/400 responses from SDK)
-    if (typeof finalMessage === 'string' && finalMessage.trim().startsWith('{')) {
+    // Try to find embedded JSON error string (common with 403/400 responses from SDK)
+    const jsonMatch = finalMessage.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
       try {
-        const parsed = JSON.parse(finalMessage);
-        if (parsed.error && parsed.error.message) {
-          finalMessage = parsed.error.message;
-          // Handle explicit 403 from the parsed body
-          if (parsed.error.code === 403 || parsed.error.status === 'PERMISSION_DENIED') {
-            finalMessage = `Permission Denied: Your API key does not have access to the model '${modelId}'. Please select a different model or check your Google Cloud Console permissions.`;
-          }
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.error) {
+           if (parsed.error.message) finalMessage = parsed.error.message;
+           if (parsed.error.code === 403 || parsed.error.status === 'PERMISSION_DENIED') {
+             isPermissionError = true;
+           }
         }
       } catch (e) {
-        // Fallback to original message if parse fails
+        // failed to parse, use original string
       }
-    } else if (finalMessage.includes("403") || finalMessage.includes("Permission denied")) {
-        finalMessage = `Permission Denied: Your API key does not have access to the model '${modelId}'.`;
+    }
+    
+    // Check for explicit status codes in the error object or message text
+    if (error.status === 403 || finalMessage.includes("403") || finalMessage.toLowerCase().includes("permission denied")) {
+      isPermissionError = true;
+    }
+
+    if (isPermissionError) {
+       finalMessage = `Permission Denied: Your API key does not have access to the model '${modelId}'.`;
+       
+       // Fallback logic for Pro model
+       if (modelId === ModelId.GEMINI_3_PRO_IMAGE) {
+          console.warn("Permission denied for Gemini 3.0 Pro. Attempting fallback to Gemini 2.5 Flash.");
+          try {
+             const fallbackResult = await generateImage({
+                ...config,
+                modelId: ModelId.GEMINI_2_5_FLASH_IMAGE
+             });
+             return fallbackResult;
+          } catch (fallbackError) {
+             console.error("Fallback failed", fallbackError);
+             // If fallback fails, throw the original permission error but mention the fallback attempt failed
+             finalMessage += " Fallback to Gemini 2.5 Flash also failed.";
+          }
+       }
     }
 
     throw new Error(finalMessage);

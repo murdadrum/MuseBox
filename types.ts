@@ -76,6 +76,7 @@ export interface GenerationConfig {
   prompt: string;
   globalStyle: string;
   styleReferenceImage?: string;
+  seed?: number;
   modelId: ModelId;
   aspectRatio: AspectRatio;
   resolution: Resolution;
