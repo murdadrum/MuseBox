@@ -12,7 +12,7 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
     throw new Error("API Key is missing. Please check your environment configuration.");
   }
 
-  const { modelId, prompt, aspectRatio, resolution, perspective, lighting, lens, focalLength, globalStyle, negativePrompt } = config;
+  const { modelId, prompt, aspectRatio, resolution, perspective, lighting, lens, focalLength, globalStyle, negativePrompt, styleReferenceImage } = config;
 
   // Construct enhanced prompt with perspective and global style
   let fullPrompt = prompt;
@@ -46,6 +46,8 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
     // 1. Imagen Models
     if (modelId === ModelId.IMAGEN_4) {
       // Use generateImages for Imagen models
+      // Note: Current Imagen 3 preview in SDK generateImages does not support multi-part input easily.
+      // Ignoring styleReferenceImage for now.
       const response = await ai.models.generateImages({
         model: modelId,
         prompt: fullPrompt,
@@ -70,10 +72,28 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
       Use simple shapes and flat colors. The SVG should be abstract and artistic.
       Return ONLY the raw SVG code starting with <svg and ending with </svg>. Do not wrap it in markdown code blocks.`;
 
+      // Construct parts, potentially including the reference image
+      const parts: any[] = [{ text: svgPrompt }];
+
+      if (styleReferenceImage) {
+        // Parse base64 string
+        const match = styleReferenceImage.match(/^data:(image\/[a-z]+);base64,(.+)$/);
+        if (match) {
+          parts.unshift({
+            inlineData: {
+              mimeType: match[1],
+              data: match[2]
+            }
+          });
+          // Update prompt to acknowledge image
+          parts[parts.length -1].text = `Using the attached image as a visual reference, ${svgPrompt}`;
+        }
+      }
+
       const response = await ai.models.generateContent({
         model: modelId,
         contents: {
-          parts: [{ text: svgPrompt }],
+          parts: parts,
         },
       });
 
@@ -101,10 +121,25 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
         imageConfig.imageSize = resolution;
       }
 
+      // Construct content parts
+      const parts: any[] = [{ text: fullPrompt }];
+
+      if (styleReferenceImage) {
+         const match = styleReferenceImage.match(/^data:(image\/[a-z]+);base64,(.+)$/);
+         if (match) {
+            parts.unshift({
+               inlineData: {
+                  mimeType: match[1],
+                  data: match[2]
+               }
+            });
+         }
+      }
+
       const response = await ai.models.generateContent({
         model: modelId,
         contents: {
-          parts: [{ text: fullPrompt }],
+          parts: parts,
         },
         config: {
           imageConfig: imageConfig,
@@ -112,12 +147,12 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
       });
 
       // Iterate through parts to find the image
-      const parts = response.candidates?.[0]?.content?.parts;
-      if (!parts) {
+      const contentParts = response.candidates?.[0]?.content?.parts;
+      if (!contentParts) {
         throw new Error("No content parts returned.");
       }
 
-      for (const part of parts) {
+      for (const part of contentParts) {
         if (part.inlineData && part.inlineData.data) {
            const mimeType = part.inlineData.mimeType || 'image/png';
            return { url: `data:${mimeType};base64,${part.inlineData.data}` };

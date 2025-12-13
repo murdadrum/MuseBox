@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig, StylePreset, StudioMode } from '../types';
 import Button from './Button';
-import { Settings2, Camera, Expand, Sparkles, Image as ImageIcon, Box, Palette, Sun, Aperture, ZoomIn, Ban, Lock, Unlock, Bookmark, LayoutDashboard, Video, X } from 'lucide-react';
+import { Settings2, Camera, Expand, Sparkles, Image as ImageIcon, Box, Palette, Sun, Aperture, ZoomIn, Ban, Lock, Unlock, Bookmark, LayoutDashboard, Video, X, Upload } from 'lucide-react';
 
 interface ControlsProps {
   config: GenerationConfig;
@@ -18,9 +18,23 @@ interface ControlsProps {
 }
 
 const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGenerating, lockedKeys, onToggleLock, savedStyles, onSelectStyle, mode, onModeChange, onClose }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const handleChange = <K extends keyof GenerationConfig>(key: K, value: GenerationConfig[K]) => {
     onChange({ ...config, [key]: value });
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        handleChange('styleReferenceImage', reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+    // Reset value to allow re-uploading same file if needed
+    if (e.target) e.target.value = '';
   };
 
   const selectClassName = "w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2.5 text-sm text-zinc-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none";
@@ -125,6 +139,38 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
               <option value={ModelId.IMAGEN_4}>Imagen 3 (Preview)</option>
               <option value={ModelId.GEMINI_2_0_FLASH_EXP} className="text-zinc-400">Gemini 2.0 Flash (Dev/Draft)</option>
             </select>
+          </div>
+
+          {/* Style Reference Image */}
+          <div className="space-y-0">
+            {renderLabel("Style Reference", <ImageIcon className="w-3 h-3" />, 'styleReferenceImage')}
+            {config.styleReferenceImage ? (
+                <div className="relative w-full h-32 rounded-lg overflow-hidden border border-zinc-800 group bg-zinc-950">
+                    <img src={config.styleReferenceImage} alt="Reference" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                    <button
+                        onClick={() => handleChange('styleReferenceImage', undefined)}
+                        className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-md hover:bg-red-500/80 transition-colors"
+                        title="Remove Reference"
+                    >
+                        <X className="w-3 h-3" />
+                    </button>
+                </div>
+            ) : (
+                <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full h-24 border border-dashed border-zinc-800 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-indigo-500/50 hover:bg-zinc-800/30 transition-all group"
+                >
+                    <Upload className="w-5 h-5 text-zinc-600 group-hover:text-indigo-400 mb-2 transition-colors" />
+                    <span className="text-[10px] text-zinc-500 group-hover:text-zinc-300 font-medium">Upload Image</span>
+                    <input 
+                        ref={fileInputRef}
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={handleImageUpload}
+                    />
+                </div>
+            )}
           </div>
 
           {/* Global Style Input */}

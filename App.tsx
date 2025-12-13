@@ -10,6 +10,7 @@ import { Download, AlertCircle, X, FilePlus, FolderOpen, Save, HardDrive, Cloud,
 const DEFAULT_CONFIG: GenerationConfig = {
   prompt: '',
   globalStyle: '',
+  styleReferenceImage: undefined,
   modelId: ModelId.GEMINI_2_5_FLASH_IMAGE,
   aspectRatio: AspectRatio.SQUARE,
   resolution: Resolution.RES_1K,
@@ -473,6 +474,12 @@ function App() {
                       >
                         {currentImage.config.globalStyle}
                       </button>
+                    )}
+                    {currentImage.config.styleReferenceImage && (
+                       <div className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 flex items-center text-zinc-300">
+                          <span className="w-2 h-2 rounded-full bg-indigo-500 mr-2"></span>
+                          Image Reference Used
+                       </div>
                     )}
                     {currentImage.config.negativePrompt && (
                       <button 

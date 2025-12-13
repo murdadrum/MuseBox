@@ -75,6 +75,7 @@ export enum StudioMode {
 export interface GenerationConfig {
   prompt: string;
   globalStyle: string;
+  styleReferenceImage?: string;
   modelId: ModelId;
   aspectRatio: AspectRatio;
   resolution: Resolution;
