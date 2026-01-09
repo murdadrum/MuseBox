@@ -6,7 +6,8 @@ import SaveModal from './components/SaveModal';
 import StyleModal from './components/StyleModal';
 import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig, GeneratedImage, ProjectData, StylePreset, StoryboardItem } from './types';
 import { generateImage } from './services/geminiService';
-import { Download, AlertCircle, X, FilePlus, Save, HardDrive, Plus, PanelLeft, Key, Sparkles, PanelRight, History, Film } from 'lucide-react';
+import { Download, AlertCircle, X, FilePlus, Save, HardDrive, Plus, PanelLeft, Key, Sparkles, PanelRight, History, Film, FileText } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 
 const ALL_CONFIG_KEYS: (keyof GenerationConfig)[] = [
   'prompt', 'globalStyle', 'styleReferenceImage', 'seed', 'modelId', 
@@ -255,6 +256,90 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  const exportStoryboardOnly = () => {
+    const boardData = {
+      projectName,
+      exportedAt: Date.now(),
+      storyboard
+    };
+    const blob = new Blob([JSON.stringify(boardData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${projectName.replace(/\s+/g, '-').toLowerCase()}-board.musebox.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportStoryboardToPDF = async () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let currentY = 20;
+
+    // Header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text("MUSEBOX STORYBOARD", 20, currentY);
+    
+    currentY += 10;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100);
+    doc.text(`Project: ${projectName}`, 20, currentY);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, pageWidth - 20, currentY, { align: 'right' });
+    
+    currentY += 10;
+    doc.setDrawColor(200);
+    doc.line(20, currentY, pageWidth - 20, currentY);
+    currentY += 15;
+
+    for (let i = 0; i < storyboard.length; i++) {
+      const item = storyboard[i];
+      const sceneLabel = item.name || `SCENE ${String(i + 1).padStart(2, '0')}`;
+
+      // Check if we need a new page
+      if (currentY > pageHeight - 60) {
+        doc.addPage();
+        currentY = 20;
+      }
+
+      // Scene Title
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(0);
+      doc.text(sceneLabel, 20, currentY);
+      currentY += 8;
+
+      // Image
+      if (item.imageUrl) {
+        try {
+          doc.addImage(item.imageUrl, 'PNG', 20, currentY, 50, 50);
+        } catch (e) {
+          console.error("Could not add image to PDF", e);
+          doc.rect(20, currentY, 50, 50);
+          doc.text("Image missing", 25, currentY + 25);
+        }
+      } else {
+        doc.setDrawColor(220);
+        doc.rect(20, currentY, 50, 50);
+        doc.setFontSize(8);
+        doc.text("AWAITING FRAME", 25, currentY + 25);
+      }
+
+      // Script/Notes
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      const scriptText = item.script || "No notes provided for this scene.";
+      const splitText = doc.splitTextToSize(scriptText, pageWidth - 85);
+      doc.text(splitText, 75, currentY + 5);
+
+      currentY += 60; // Advance for next scene
+    }
+
+    doc.save(`${projectName.replace(/\s+/g, '-').toLowerCase()}-board.pdf`);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -426,10 +511,26 @@ function App() {
               <Film className="w-3 h-3 mr-2 text-purple-400" />
               Production Storyboard
             </h3>
-            <button onClick={() => handleAddStoryboardItem()} className="flex items-center space-x-1.5 px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] font-bold transition-all uppercase tracking-wider">
-              <Plus className="w-3 h-3" />
-              <span>Add Scene</span>
-            </button>
+            <div className="flex items-center space-x-2">
+              <button 
+                onClick={exportStoryboardToPDF} 
+                disabled={storyboard.length === 0}
+                className="flex items-center space-x-1.5 px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-md text-[10px] font-bold transition-all uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Export Storyboard to PDF"
+              >
+                <FileText className="w-3 h-3" />
+                <span>PDF</span>
+              </button>
+              <button 
+                onClick={exportStoryboardOnly} 
+                disabled={storyboard.length === 0}
+                className="flex items-center space-x-1.5 px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-md text-[10px] font-bold transition-all uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Export Storyboard JSON"
+              >
+                <Download className="w-3 h-3" />
+                <span>Board</span>
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-x-auto custom-scrollbar">
             <Storyboard 
