@@ -151,11 +151,11 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, onRan
           </div>
 
           <div>
-            {renderLabel("Prompt", <Sparkles className="w-3 h-3" />, 'prompt')}
+            {renderLabel("PROMPT / NEGATIVE", <Sparkles className="w-3 h-3" />, 'prompt')}
             <textarea
               value={config.prompt}
               onChange={(e) => handleChange('prompt', e.target.value)}
-              placeholder="Visual narrative description..."
+              placeholder="Visual narrative description... (e.g. 'A cat, avoid: water')"
               className="w-full h-24 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-600 outline-none resize-none"
             />
           </div>

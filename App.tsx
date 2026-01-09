@@ -273,8 +273,8 @@ function App() {
     reader.readAsText(file);
   };
 
-  const handleAddStoryboardItem = () => {
-    setStoryboard(prev => [...prev, { id: crypto.randomUUID(), script: "" }]);
+  const handleAddStoryboardItem = (imageUrl?: string) => {
+    setStoryboard(prev => [...prev, { id: crypto.randomUUID(), script: "", imageUrl }]);
   };
 
   const handleUpdateStoryboardItem = (id: string, updates: Partial<StoryboardItem>) => {
@@ -283,6 +283,10 @@ function App() {
 
   const handleDeleteStoryboardItem = (id: string) => {
     setStoryboard(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleDragStart = (e: React.DragEvent, imageUrl: string) => {
+    e.dataTransfer.setData('image-url', imageUrl);
   };
 
   return (
@@ -334,10 +338,10 @@ function App() {
         </header>
 
         <div className="flex-1 flex overflow-hidden">
-          <main className="flex-1 overflow-y-auto p-8 scroll-smooth flex flex-col items-center">
-            <div className="w-full max-w-5xl">
+          <main className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth flex flex-col items-center">
+            <div className="w-full max-w-5xl h-full flex flex-col">
               {error && (
-                <div className="mb-6 rounded-lg bg-red-950/30 border border-red-900/50 p-4 shadow-xl">
+                <div className="mb-6 rounded-lg bg-red-950/30 border border-red-900/50 p-4 shadow-xl flex-shrink-0">
                   <div className="flex items-start">
                     <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 mr-3 flex-shrink-0" />
                     <div className="flex-1">
@@ -349,26 +353,36 @@ function App() {
                 </div>
               )}
 
-              <section className="mb-12">
+              <section className="flex-1 min-h-0 mb-8">
                 {currentImage ? (
-                  <div className="relative group rounded-xl overflow-hidden shadow-2xl border border-zinc-800 bg-zinc-900">
-                    <div className="w-full flex items-center justify-center bg-zinc-950/50 relative" style={{ minHeight: '400px', maxHeight: '60vh' }}>
-                       <img src={currentImage.url} alt={currentImage.prompt} className="max-w-full max-h-[60vh] object-contain shadow-lg" />
+                  <div 
+                    className="h-full flex flex-col group rounded-xl overflow-hidden shadow-2xl border border-zinc-800 bg-zinc-900 cursor-grab active:cursor-grabbing"
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, currentImage.url)}
+                  >
+                    <div className="flex-1 flex items-center justify-center bg-zinc-950/50 relative overflow-hidden">
+                       <img src={currentImage.url} alt={currentImage.prompt} className="max-w-full max-h-full object-contain shadow-lg" />
+                       <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-all duration-200 z-20 flex space-x-2">
+                          <button 
+                            onClick={() => handleAddStoryboardItem(currentImage.url)}
+                            className="flex items-center justify-center p-2.5 bg-zinc-950/90 border border-zinc-800 rounded-lg text-white hover:bg-purple-600 hover:border-purple-500 transition-all shadow-2xl group/btn"
+                            title="Add to Scene"
+                          >
+                            <Plus className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
+                          </button>
+                          <a 
+                            href={currentImage.url} 
+                            download={`musebox-${currentImage.id}.png`} 
+                            className="flex items-center justify-center p-2.5 bg-zinc-950/90 border border-zinc-800 rounded-lg text-white hover:bg-indigo-600 hover:border-indigo-500 transition-all shadow-2xl group/btn"
+                            title="Download Asset"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Download className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
+                          </a>
+                      </div>
                     </div>
-                    {/* Fixed Download Button: Removed backdrop-blur-md to prevent composite artifacts and ensured high visibility */}
-                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-all duration-200 z-20">
-                        <a 
-                          href={currentImage.url} 
-                          download={`musebox-${currentImage.id}.png`} 
-                          className="flex items-center justify-center p-2.5 bg-zinc-950/90 border border-zinc-800 rounded-lg text-white hover:bg-indigo-600 hover:border-indigo-500 transition-all shadow-2xl group/btn"
-                          title="Download Asset"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Download className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
-                        </a>
-                    </div>
-                    <div className="p-4 border-t border-zinc-800 bg-zinc-900">
-                      <p className="text-zinc-100 font-medium mb-1">{currentImage.prompt}</p>
+                    <div className="p-4 border-t border-zinc-800 bg-zinc-900 flex-shrink-0">
+                      <p className="text-zinc-100 font-medium mb-1 truncate">{currentImage.prompt}</p>
                       <div className="flex flex-wrap gap-2 text-xs text-zinc-500 items-center">
                         <button onClick={() => applyAndToggleLock('modelId', currentImage.config.modelId)} className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 hover:text-white transition-colors">{currentImage.config.modelId}</button>
                         <button onClick={() => applyAndToggleLock('aspectRatio', currentImage.config.aspectRatio)} className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 hover:text-white transition-colors">{currentImage.config.aspectRatio}</button>
@@ -377,7 +391,7 @@ function App() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-96 border-2 border-dashed border-zinc-800 rounded-xl bg-zinc-900/20 text-zinc-500">
+                  <div className="flex flex-col items-center justify-center h-full border-2 border-dashed border-zinc-800 rounded-xl bg-zinc-900/20 text-zinc-500">
                      <div className="w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center mb-4 text-2xl">✨</div>
                      <h3 className="text-lg font-medium text-zinc-300 mb-2">Studio Empty</h3>
                      <p className="max-w-md text-center text-sm leading-relaxed">Configure parameters on the left and click generate to begin creation.</p>
@@ -393,26 +407,37 @@ function App() {
                 <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center"><History className="w-3 h-3 mr-2 text-indigo-400" />Asset Browser</h3>
               </div>
               <div className="flex-1 overflow-y-auto p-4 scroll-smooth">
-                <Gallery images={history} onSelect={setCurrentImage} onDelete={handleDeleteHistory} />
+                <Gallery 
+                  images={history} 
+                  onSelect={setCurrentImage} 
+                  onDelete={handleDeleteHistory} 
+                  onAddToStoryboard={handleAddStoryboardItem}
+                  onDragStart={handleDragStart}
+                />
               </div>
             </aside>
           )}
         </div>
 
         {/* STORYBOARD BOTTOM SECTION */}
-        <section className="h-72 border-t border-zinc-800 bg-zinc-950 flex flex-col overflow-hidden">
+        <section className="h-72 border-t border-zinc-800 bg-zinc-950 flex flex-col overflow-hidden flex-shrink-0">
           <div className="px-6 py-2 border-b border-zinc-800/50 bg-zinc-900/30 flex items-center justify-between">
             <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center">
               <Film className="w-3 h-3 mr-2 text-purple-400" />
               Production Storyboard
             </h3>
-            <button onClick={handleAddStoryboardItem} className="flex items-center space-x-1.5 px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] font-bold transition-all uppercase tracking-wider">
+            <button onClick={() => handleAddStoryboardItem()} className="flex items-center space-x-1.5 px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] font-bold transition-all uppercase tracking-wider">
               <Plus className="w-3 h-3" />
               <span>Add Scene</span>
             </button>
           </div>
           <div className="flex-1 overflow-x-auto custom-scrollbar">
-            <Storyboard items={storyboard} onUpdate={handleUpdateStoryboardItem} onAdd={handleAddStoryboardItem} onDelete={handleDeleteStoryboardItem} />
+            <Storyboard 
+              items={storyboard} 
+              onUpdate={handleUpdateStoryboardItem} 
+              onAdd={handleAddStoryboardItem} 
+              onDelete={handleDeleteStoryboardItem} 
+            />
           </div>
         </section>
       </div>

@@ -97,6 +97,7 @@ export interface GeneratedImage {
 
 export interface StoryboardItem {
   id: string;
+  name?: string;
   imageId?: string;
   imageUrl?: string;
   script: string;

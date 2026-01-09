@@ -1,14 +1,16 @@
 import React from 'react';
 import { GeneratedImage } from '../types';
-import { Download, Maximize2, Trash2 } from 'lucide-react';
+import { Download, Maximize2, Trash2, Plus } from 'lucide-react';
 
 interface GalleryProps {
   images: GeneratedImage[];
   onSelect: (image: GeneratedImage) => void;
   onDelete: (id: string) => void;
+  onAddToStoryboard?: (imageUrl: string) => void;
+  onDragStart?: (e: React.DragEvent, imageUrl: string) => void;
 }
 
-const Gallery: React.FC<GalleryProps> = ({ images, onSelect, onDelete }) => {
+const Gallery: React.FC<GalleryProps> = ({ images, onSelect, onDelete, onAddToStoryboard, onDragStart }) => {
   if (images.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 border border-zinc-800 border-dashed rounded-xl bg-zinc-950/50">
@@ -22,7 +24,9 @@ const Gallery: React.FC<GalleryProps> = ({ images, onSelect, onDelete }) => {
       {images.map((img) => (
         <div 
           key={img.id} 
-          className="group relative aspect-square bg-zinc-950 rounded-lg overflow-hidden border border-zinc-800 hover:border-indigo-500/50 transition-all cursor-pointer shadow-sm"
+          className="group relative aspect-square bg-zinc-950 rounded-lg overflow-hidden border border-zinc-800 hover:border-indigo-500/50 transition-all cursor-grab active:cursor-grabbing shadow-sm"
+          draggable
+          onDragStart={(e) => onDragStart?.(e, img.url)}
           onClick={() => onSelect(img)}
         >
           <img 
@@ -32,6 +36,13 @@ const Gallery: React.FC<GalleryProps> = ({ images, onSelect, onDelete }) => {
           />
           <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2">
              <div className="flex items-center justify-center space-x-1.5">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onAddToStoryboard?.(img.url); }}
+                  className="p-1.5 bg-zinc-800/80 hover:bg-purple-600 rounded text-white transition-colors"
+                  title="Add to Scene"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
                 <button 
                   onClick={(e) => { e.stopPropagation(); onSelect(img); }}
                   className="p-1.5 bg-zinc-800/80 hover:bg-indigo-600 rounded text-white transition-colors"
