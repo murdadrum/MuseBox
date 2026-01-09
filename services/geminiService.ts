@@ -1,21 +1,47 @@
 import { GoogleGenAI } from "@google/genai";
 import { ModelId, GenerationConfig, Resolution, AspectRatio } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export interface GenerateImageResult {
   url: string;
   modelId?: ModelId;
 }
 
+// Permissive safety settings to minimize content filtering
+const PERMISSIVE_SAFETY_SETTINGS = [
+  {
+    category: 'HARM_CATEGORY_HARASSMENT',
+    threshold: 'BLOCK_NONE',
+  },
+  {
+    category: 'HARM_CATEGORY_HATE_SPEECH',
+    threshold: 'BLOCK_NONE',
+  },
+  {
+    category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+    threshold: 'BLOCK_NONE',
+  },
+  {
+    category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+    threshold: 'BLOCK_NONE',
+  },
+  {
+    category: 'HARM_CATEGORY_CIVIC_INTEGRITY',
+    threshold: 'BLOCK_NONE',
+  }
+];
+
 export const generateImage = async (config: GenerationConfig): Promise<GenerateImageResult> => {
+  // CRITICAL: Always create a new instance right before making an API call 
+  // to ensure it uses the most up-to-date API key from the dialog.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
   if (!process.env.API_KEY) {
-    throw new Error("API Key is missing. Please check your environment configuration.");
+    throw new Error("API Key is missing. Please select an API key using the 'Key' button in the header.");
   }
 
   const { modelId, prompt, aspectRatio, resolution, perspective, lighting, lens, focalLength, globalStyle, negativePrompt, styleReferenceImage, seed } = config;
 
-  // Construct enhanced prompt with perspective and global style
+  // Construct enhanced prompt
   let fullPrompt = prompt;
 
   if (globalStyle && globalStyle.trim()) {
@@ -38,17 +64,12 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
     fullPrompt = `${fullPrompt}, focal length ${focalLength}`;
   }
 
-  // Append negative prompt instructions if present
   if (negativePrompt && negativePrompt.trim()) {
     fullPrompt = `${fullPrompt}. Do not include: ${negativePrompt}`;
   }
 
   try {
-    // 1. Imagen Models
     if (modelId === ModelId.IMAGEN_4) {
-      // Use generateImages for Imagen models
-      // Note: Current Imagen 3 preview in SDK generateImages does not support multi-part input easily.
-      // Ignoring styleReferenceImage for now.
       const response = await ai.models.generateImages({
         model: modelId,
         prompt: fullPrompt,
@@ -56,7 +77,7 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
           numberOfImages: 1,
           outputMimeType: 'image/jpeg',
           aspectRatio: aspectRatio,
-          // Seed might not be supported in this SDK wrapper for generateImages yet, or assumes different config structure
+          safetySettings: PERMISSIVE_SAFETY_SETTINGS,
         },
       });
 
@@ -67,18 +88,13 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
       return { url: `data:image/jpeg;base64,${base64EncodeString}`, modelId };
 
     } else if (modelId === ModelId.GEMINI_2_0_FLASH_EXP) {
-      // 2. Dev / Draft Model (Text-to-SVG)
-      // Special handler for "Dev/Draft" model which is text-only/multimodal but not native image gen.
-      // We ask it to generate an SVG placeholder code.
       const svgPrompt = `Generate a simple, minimalist SVG code representing this scene: "${fullPrompt}".
-      Use simple shapes and flat colors. The SVG should be abstract and artistic.
-      Return ONLY the raw SVG code starting with <svg and ending with </svg>. Do not wrap it in markdown code blocks.`;
+      Use simple shapes and flat colors.
+      Return ONLY the raw SVG code starting with <svg and ending with </svg>.`;
 
-      // Construct parts, potentially including the reference image
       const parts: any[] = [{ text: svgPrompt }];
 
       if (styleReferenceImage) {
-        // Parse base64 string
         const match = styleReferenceImage.match(/^data:(image\/[a-z]+);base64,(.+)$/);
         if (match) {
           parts.unshift({
@@ -87,8 +103,7 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
               data: match[2]
             }
           });
-          // Update prompt to acknowledge image
-          parts[parts.length -1].text = `Using the attached image as a visual reference, ${svgPrompt}`;
+          parts[parts.length -1].text = `Using the attached image as a reference, ${svgPrompt}`;
         }
       }
 
@@ -99,6 +114,7 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
         },
         config: {
           seed: seed,
+          safetySettings: PERMISSIVE_SAFETY_SETTINGS,
         }
       });
 
@@ -107,17 +123,13 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
 
       if (svgMatch) {
         const svgContent = svgMatch[0];
-        // Encode to base64 to display as image (handling utf8 via unescape)
         const base64Svg = btoa(unescape(encodeURIComponent(svgContent)));
         return { url: `data:image/svg+xml;base64,${base64Svg}`, modelId };
       }
       
-      throw new Error("Model generated text but no valid SVG found for placeholder.");
+      throw new Error("Model generated text but no valid SVG found.");
 
     } else {
-      // 3. Gemini Image Models (Nano Banana series / Pro)
-      
-      // Prepare imageConfig. Note: imageSize only for gemini-3-pro-image-preview
       const imageConfig: any = {
         aspectRatio: aspectRatio,
       };
@@ -126,7 +138,6 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
         imageConfig.imageSize = resolution;
       }
 
-      // Construct content parts
       const parts: any[] = [{ text: fullPrompt }];
 
       if (styleReferenceImage) {
@@ -149,10 +160,10 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
         config: {
           imageConfig: imageConfig,
           seed: seed,
+          safetySettings: PERMISSIVE_SAFETY_SETTINGS,
         },
       });
 
-      // Iterate through parts to find the image
       const contentParts = response.candidates?.[0]?.content?.parts;
       if (!contentParts) {
         throw new Error("No content parts returned.");
@@ -165,16 +176,14 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
         }
       }
       
-      throw new Error("No image inline data found in response.");
+      throw new Error("No image data found in response.");
     }
   } catch (error: any) {
     console.error("Image generation failed:", error);
     
-    // Parse JSON error messages if present
     let finalMessage = error.message || "Unknown error occurred";
     let isPermissionError = false;
     
-    // Try to find embedded JSON error string (common with 403/400 responses from SDK)
     const jsonMatch = finalMessage.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       try {
@@ -185,34 +194,16 @@ export const generateImage = async (config: GenerationConfig): Promise<GenerateI
              isPermissionError = true;
            }
         }
-      } catch (e) {
-        // failed to parse, use original string
-      }
+      } catch (e) {}
     }
     
-    // Check for explicit status codes in the error object or message text
     if (error.status === 403 || finalMessage.includes("403") || finalMessage.toLowerCase().includes("permission denied")) {
       isPermissionError = true;
     }
 
     if (isPermissionError) {
-       finalMessage = `Permission Denied: Your API key does not have access to the model '${modelId}'.`;
-       
-       // Fallback logic for Pro model
-       if (modelId === ModelId.GEMINI_3_PRO_IMAGE) {
-          console.warn("Permission denied for Gemini 3.0 Pro. Attempting fallback to Gemini 2.5 Flash.");
-          try {
-             const fallbackResult = await generateImage({
-                ...config,
-                modelId: ModelId.GEMINI_2_5_FLASH_IMAGE
-             });
-             return fallbackResult;
-          } catch (fallbackError) {
-             console.error("Fallback failed", fallbackError);
-             // If fallback fails, throw the original permission error but mention the fallback attempt failed
-             finalMessage += " Fallback to Gemini 2.5 Flash also failed.";
-          }
-       }
+       // Detailed guidance for 403 errors
+       throw new Error(`PERMISSION_DENIED: Access to ${modelId} requires a billing-enabled API key from a paid GCP project. Please click the 'Key' icon in the header to configure.`);
     }
 
     throw new Error(finalMessage);

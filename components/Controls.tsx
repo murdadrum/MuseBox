@@ -1,12 +1,13 @@
 import React, { useRef, useState } from 'react';
 import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig, StylePreset, StudioMode } from '../types';
 import Button from './Button';
-import { Settings2, Camera, Expand, Sparkles, Image as ImageIcon, Box, Palette, Sun, Aperture, ZoomIn, Ban, Lock, Unlock, Bookmark, LayoutDashboard, Video, X, Upload, Loader2, Dices } from 'lucide-react';
+import { Settings2, Camera, Expand, Sparkles, Image as ImageIcon, Box, Palette, Sun, Aperture, ZoomIn, Ban, Lock, Unlock, Bookmark, LayoutDashboard, Video, X, Upload, Loader2, Dices, Zap } from 'lucide-react';
 
 interface ControlsProps {
   config: GenerationConfig;
   onChange: (config: GenerationConfig) => void;
   onGenerate: () => void;
+  onRandomSpawn: () => void;
   isGenerating: boolean;
   lockedKeys: string[];
   onToggleLock: (key: keyof GenerationConfig) => void;
@@ -17,7 +18,7 @@ interface ControlsProps {
   onClose: () => void;
 }
 
-const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGenerating, lockedKeys, onToggleLock, savedStyles, onSelectStyle, mode, onModeChange, onClose }) => {
+const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, onRandomSpawn, isGenerating, lockedKeys, onToggleLock, savedStyles, onSelectStyle, mode, onModeChange, onClose }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   
@@ -104,7 +105,7 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
 
   return (
     <div className="flex flex-col h-full bg-zinc-900 border-r border-zinc-800 w-full md:w-80 p-6 overflow-y-auto">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
             <Sparkles className="text-white w-5 h-5" />
@@ -119,6 +120,16 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
           <X className="w-5 h-5" />
         </button>
       </div>
+
+      {/* Random Spawn Button */}
+      <button
+        onClick={onRandomSpawn}
+        disabled={isGenerating}
+        className="mb-6 w-full flex items-center justify-center space-x-2 py-3 px-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 text-white rounded-lg font-bold text-sm tracking-widest uppercase shadow-lg shadow-indigo-500/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+      >
+        <Zap className="w-4 h-4 fill-current group-hover:animate-pulse" />
+        <span>Random Spawn</span>
+      </button>
 
       {/* Mode Switcher */}
       <div className="flex items-center space-x-1 bg-zinc-950 p-1 rounded-lg border border-zinc-800 mb-6 shrink-0">
@@ -395,9 +406,6 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, isGen
           <Button 
             onClick={() => {
               onGenerate();
-              // Optionally close on mobile after generating, 
-              // but user might want to generate multiple variations.
-              // Let's keep it open.
             }} 
             isLoading={isGenerating} 
             className="w-full py-3 text-sm uppercase tracking-wide"

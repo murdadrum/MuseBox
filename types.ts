@@ -95,12 +95,20 @@ export interface GeneratedImage {
   timestamp: number;
 }
 
+export interface StoryboardItem {
+  id: string;
+  imageId?: string;
+  imageUrl?: string;
+  script: string;
+}
+
 export interface ProjectData {
   name: string;
   version: string;
   created: number;
   lastModified: number;
   history: GeneratedImage[];
+  storyboard?: StoryboardItem[];
   lastConfig: GenerationConfig;
 }
 
