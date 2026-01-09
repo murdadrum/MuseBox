@@ -1,11 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Controls from './components/Controls';
 import Gallery from './components/Gallery';
+import Storyboard from './components/Storyboard';
 import SaveModal from './components/SaveModal';
 import StyleModal from './components/StyleModal';
-import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig, GeneratedImage, ProjectData, StylePreset, StudioMode } from './types';
+import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig, GeneratedImage, ProjectData, StylePreset, StoryboardItem } from './types';
 import { generateImage } from './services/geminiService';
-import { Download, AlertCircle, X, FilePlus, FolderOpen, Save, HardDrive, Cloud, Plus, PanelLeft, Key, Sparkles } from 'lucide-react';
+import { Download, AlertCircle, X, FilePlus, Save, HardDrive, Plus, PanelLeft, Key, Sparkles, PanelRight, History, Film } from 'lucide-react';
+
+const ALL_CONFIG_KEYS: (keyof GenerationConfig)[] = [
+  'prompt', 'globalStyle', 'styleReferenceImage', 'seed', 'modelId', 
+  'aspectRatio', 'resolution', 'perspective', 'lighting', 'lens', 
+  'focalLength', 'negativePrompt'
+];
 
 const DEFAULT_CONFIG: GenerationConfig = {
   prompt: '',
@@ -30,18 +37,6 @@ const RANDOM_PROMPTS = [
   "A sprawling victorian garden with robotic peacocks and clockwork flowers",
   "A desert oasis at sunset where the sand is made of sparkling diamonds",
   "A space station orbiting a binary star system with vibrant nebulae",
-  "A cozy library built into a giant hollowed-out tree trunk",
-  "A floating archipelago of islands connected by rainbow bridges",
-  "An industrial refinery in a volcano with rivers of molten gold",
-  "A surreal dreamscape where gravity is reversed and whales fly in the sky",
-  "A samurai showdown in a bamboo forest during a heavy rainstorm",
-  "A retro-futuristic soda fountain on the moon with earth in the background",
-  "An ancient aztec temple made of polished chrome and green energy",
-  "A gothic cathedral with stained glass windows showing distant galaxies",
-  "An overgrown abandoned shopping mall reclaimed by nature",
-  "A giant clockwork heart powering a mechanical dragon",
-  "A polar explorer discovering an alien beacon in a blizzard",
-  "A floating tea house in the clouds of a gas giant planet",
   "A hyper-realistic close up of a circuit board that looks like a city"
 ];
 
@@ -51,17 +46,12 @@ const RANDOM_STYLES = [
   "Moody Oil Painting, thick brushstrokes, dramatic shadows",
   "Minimalist Vector Art, Flat Colors, clean lines",
   "Gothic Dark Fantasy, intricate details, ominous atmosphere",
-  "Studio Photography, Soft Lighting, Depth of Field",
-  "Watercolor Sketch, loose edges, pastel tones",
-  "Isometric 3D render, Toy-like aesthetic, tilt-shift",
-  "Cyberpunk Anime Style, cel-shaded, neon glow",
-  "Pencil Drawing, Cross-hatching, realistic textures"
+  "Studio Photography, Soft Lighting, Depth of Field"
 ];
 
 const RANDOM_NEGATIVES = [
   "blur, distortion, text, signature, low quality",
   "cartoonish, bright, overexposed, grainy",
-  "deformed limbs, extra fingers, anatomical errors",
   "flat colors, boring, low resolution"
 ];
 
@@ -73,24 +63,19 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentImage, setCurrentImage] = useState<GeneratedImage | null>(null);
   const [history, setHistory] = useState<GeneratedImage[]>([]);
+  const [storyboard, setStoryboard] = useState<StoryboardItem[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [styleBook, setStyleBook] = useState<StylePreset[]>([]);
-  const [mode, setMode] = useState<StudioMode>(StudioMode.IMAGE);
   
-  // Key state
   const [hasKey, setHasKey] = useState<boolean>(true);
-  
-  // UI State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(true);
   
-  // Project State
   const [projectName, setProjectName] = useState(DEFAULT_PROJECT_NAME);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Check key on mount
   useEffect(() => {
     const checkKey = async () => {
       if (window.aistudio) {
@@ -104,42 +89,38 @@ function App() {
   const handleOpenKeySelector = async () => {
     if (window.aistudio) {
       await window.aistudio.openSelectKey();
-      setHasKey(true); // Assume success per instructions
+      setHasKey(true);
       setError(null);
     }
   };
 
-  // Load history/state from local storage on mount (Auto-restore)
   useEffect(() => {
     try {
       const saved = localStorage.getItem('musebox_current_project');
       if (saved) {
         const data = JSON.parse(saved);
         setHistory(data.history || []);
+        setStoryboard(data.storyboard || []);
         setProjectName(data.name || DEFAULT_PROJECT_NAME);
         if (data.lastConfig) setConfig({ ...DEFAULT_CONFIG, ...data.lastConfig });
       }
       
       const savedStyles = localStorage.getItem('musebox_style_book');
-      if (savedStyles) {
-        setStyleBook(JSON.parse(savedStyles));
-      }
+      if (savedStyles) setStyleBook(JSON.parse(savedStyles));
 
       const savedLocks = localStorage.getItem('musebox_locked_keys');
-      if (savedLocks) {
-        setLockedKeys(JSON.parse(savedLocks));
-      }
+      if (savedLocks) setLockedKeys(JSON.parse(savedLocks));
     } catch (e) {
-      console.error("Failed to load history", e);
+      console.error("Failed to load project", e);
     }
   }, []);
 
-  // Autosave to localStorage
   useEffect(() => {
     try {
       const projectData = {
         name: projectName,
         history,
+        storyboard,
         lastConfig: config,
         lastModified: Date.now()
       };
@@ -147,31 +128,12 @@ function App() {
     } catch (e) {
       console.warn("Failed to autosave project", e);
     }
-  }, [history, projectName, config]);
-
-  // Save Locked Keys
-  useEffect(() => {
-    try {
-      localStorage.setItem('musebox_locked_keys', JSON.stringify(lockedKeys));
-    } catch (e) {
-      console.warn("Failed to save locked keys", e);
-    }
-  }, [lockedKeys]);
-
-  // Save StyleBook
-  useEffect(() => {
-    try {
-      localStorage.setItem('musebox_style_book', JSON.stringify(styleBook));
-    } catch (e) {
-      console.warn("Failed to save style book", e);
-    }
-  }, [styleBook]);
+  }, [history, storyboard, projectName, config]);
 
   const handleGenerate = async (overrideConfig?: GenerationConfig) => {
     const activeConfig = overrideConfig || config;
     if (!activeConfig.prompt.trim()) return;
 
-    // Check if key is required for specific models
     if (!hasKey && (activeConfig.modelId === ModelId.GEMINI_3_PRO_IMAGE)) {
       setError("An API key is required for Gemini 3 Pro. Please select one in the header.");
       return;
@@ -182,11 +144,8 @@ function App() {
 
     try {
       const result = await generateImage(activeConfig);
-      
       const finalConfig = { ...activeConfig };
-      if (result.modelId) {
-        finalConfig.modelId = result.modelId;
-      }
+      if (result.modelId) finalConfig.modelId = result.modelId;
 
       const newImage: GeneratedImage = {
         id: crypto.randomUUID(),
@@ -198,26 +157,10 @@ function App() {
 
       setCurrentImage(newImage);
       setHistory(prev => [newImage, ...prev]);
-      
-      if (activeConfig.modelId !== finalConfig.modelId) {
-         if (!lockedKeys.includes('modelId')) {
-             setConfig(prev => ({ ...prev, modelId: finalConfig.modelId }));
-         }
-         setError(`Note: Switched to ${finalConfig.modelId} because ${activeConfig.modelId} was unavailable.`);
-      }
-      
-      if (window.innerWidth < 768) {
-        setIsSidebarOpen(false);
-      }
     } catch (err: any) {
-      console.error(err);
-      const msg = err.message || "Failed to generate image. Please try again.";
+      const msg = err.message || "Failed to generate image.";
       setError(msg);
-      
-      // If 403, suggest key update
-      if (msg.includes("PERMISSION_DENIED")) {
-        setHasKey(false);
-      }
+      if (msg.includes("PERMISSION_DENIED")) setHasKey(false);
     } finally {
       setIsGenerating(false);
     }
@@ -247,18 +190,17 @@ function App() {
     handleGenerate(newConfig);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDeleteHistory = (id: string) => {
     setHistory(prev => prev.filter(img => img.id !== id));
     if (currentImage?.id === id) setCurrentImage(null);
-    if (selectedImage?.id === id) setSelectedImage(null);
   };
 
   const toggleLock = (key: keyof GenerationConfig) => {
-    setLockedKeys(prev => 
-      prev.includes(key) 
-        ? prev.filter(k => k !== key) 
-        : [...prev, key]
-    );
+    setLockedKeys(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  };
+
+  const handleToggleLockAll = () => {
+    setLockedKeys(lockedKeys.length > 0 ? [] : [...ALL_CONFIG_KEYS]);
   };
 
   const applyAndToggleLock = (key: keyof GenerationConfig, value: any) => {
@@ -269,12 +211,7 @@ function App() {
   const handleSaveStyle = (name: string) => {
     if (!currentImage) return;
     const { prompt, ...styleConfig } = currentImage.config;
-    const newStyle: StylePreset = {
-      id: crypto.randomUUID(),
-      name,
-      config: styleConfig
-    };
-    setStyleBook(prev => [...prev, newStyle]);
+    setStyleBook(prev => [...prev, { id: crypto.randomUUID(), name, config: styleConfig }]);
     setIsStyleModalOpen(false);
   };
 
@@ -283,8 +220,7 @@ function App() {
       const nextConfig = { ...prev };
       Object.entries(preset.config).forEach(([k, value]) => {
         const key = k as keyof GenerationConfig;
-        if (key === 'prompt') return;
-        if (lockedKeys.includes(key)) return;
+        if (key === 'prompt' || lockedKeys.includes(key)) return;
         // @ts-ignore
         nextConfig[key] = value;
       });
@@ -293,305 +229,193 @@ function App() {
   };
 
   const handleNewProject = () => {
-    if (history.length > 0) {
-      if (!window.confirm("Start a new project? Unsaved changes will be lost.")) {
-        return;
-      }
-    }
+    if (history.length > 0 && !window.confirm("Start a new project? Unsaved changes will be lost.")) return;
     setHistory([]);
+    setStoryboard([]);
     setCurrentImage(null);
     setProjectName(DEFAULT_PROJECT_NAME);
     setError(null);
-
     const newConfig = { ...DEFAULT_CONFIG };
-    lockedKeys.forEach(key => {
-        const k = key as keyof GenerationConfig;
-        // @ts-ignore
-        newConfig[k] = config[k];
-    });
-
+    lockedKeys.forEach(k => { /* @ts-ignore */ newConfig[k] = config[k]; });
     setConfig(newConfig);
-  };
-
-  const handleSaveClick = () => {
-    setIsSaveModalOpen(true);
   };
 
   const saveProjectToFile = (name: string) => {
     setProjectName(name);
     setIsSaveModalOpen(false);
-
     const projectData: ProjectData = {
-      name: name,
-      version: '1.0.0',
-      created: Date.now(),
-      lastModified: Date.now(),
-      history: history,
-      lastConfig: config
+      name, version: '1.0.0', created: Date.now(), lastModified: Date.now(), history, storyboard, lastConfig: config
     };
-
     const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = `${name.replace(/\s+/g, '-').toLowerCase()}.musebox.json`;
-    document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  };
-
-  const handleOpenLocalClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-      fileInputRef.current.click();
-    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const content = event.target?.result as string;
-        const data = JSON.parse(content) as ProjectData;
-        if (!data.history || !Array.isArray(data.history)) {
-          throw new Error("Invalid project file");
-        }
+        const data = JSON.parse(event.target?.result as string) as ProjectData;
         setProjectName(data.name || "Imported Project");
-        setHistory(data.history);
+        setHistory(data.history || []);
+        setStoryboard(data.storyboard || []);
         if (data.lastConfig) setConfig({ ...DEFAULT_CONFIG, ...data.lastConfig });
-        if (data.history.length > 0) setCurrentImage(data.history[0]);
+        if (data.history?.length > 0) setCurrentImage(data.history[0]);
         setError(null);
-      } catch (err) {
-        setError("Failed to load project file.");
-      }
+      } catch (err) { setError("Failed to load project file."); }
     };
     reader.readAsText(file);
   };
 
-  const handleDriveClick = () => {
-    alert("Direct Drive integration is coming soon.");
+  const handleAddStoryboardItem = () => {
+    setStoryboard(prev => [...prev, { id: crypto.randomUUID(), script: "" }]);
+  };
+
+  const handleUpdateStoryboardItem = (id: string, updates: Partial<StoryboardItem>) => {
+    setStoryboard(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
+  };
+
+  const handleDeleteStoryboardItem = (id: string) => {
+    setStoryboard(prev => prev.filter(item => item.id !== id));
   };
 
   return (
     <div className="flex h-screen bg-black text-zinc-100 overflow-hidden font-sans">
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleFileChange} 
-        accept=".json" 
-        className="hidden" 
-      />
-
-      <SaveModal 
-        isOpen={isSaveModalOpen} 
-        onClose={() => setIsSaveModalOpen(false)} 
-        onConfirm={saveProjectToFile}
-        initialName={projectName === DEFAULT_PROJECT_NAME ? "" : projectName}
-      />
-
-      <StyleModal 
-        isOpen={isStyleModalOpen} 
-        onClose={() => setIsStyleModalOpen(false)} 
-        onConfirm={handleSaveStyle}
-      />
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
+      <SaveModal isOpen={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} onConfirm={saveProjectToFile} initialName={projectName === DEFAULT_PROJECT_NAME ? "" : projectName} />
+      <StyleModal isOpen={isStyleModalOpen} onClose={() => setIsStyleModalOpen(false)} onConfirm={handleSaveStyle} />
 
       {isSidebarOpen && (
-        <div className="fixed inset-0 z-50 md:relative md:z-0 md:inset-auto md:h-full md:w-80 flex-shrink-0">
+        <aside className="w-80 flex-shrink-0 z-50">
           <Controls 
             config={config} 
             onChange={setConfig} 
             onGenerate={() => handleGenerate()} 
             onRandomSpawn={handleRandomSpawn}
+            onToggleLockAll={handleToggleLockAll}
             isGenerating={isGenerating}
             lockedKeys={lockedKeys}
             onToggleLock={toggleLock}
             savedStyles={styleBook}
             onSelectStyle={handleApplyStyle}
-            mode={mode}
-            onModeChange={setMode}
             onClose={() => setIsSidebarOpen(false)}
           />
-        </div>
+        </aside>
       )}
 
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-        <header className="h-16 border-b border-zinc-800 bg-zinc-950/50 backdrop-blur-sm flex items-center justify-between px-6 z-10 sticky top-0">
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        <header className="h-16 border-b border-zinc-800 bg-zinc-950/50 backdrop-blur-sm flex items-center justify-between px-6 z-10">
           <div className="flex items-center space-x-4">
-             <button 
-               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-               className="p-2 -ml-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-md transition-colors"
-               title={isSidebarOpen ? "Close Sidebar" : "Open Sidebar"}
-             >
-               <PanelLeft className="w-5 h-5" />
-             </button>
+             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 -ml-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-md transition-colors"><PanelLeft className="w-5 h-5" /></button>
              <div className="flex flex-col">
                <h2 className="text-sm font-medium text-white tracking-wide">{projectName}</h2>
-               <span className="text-xs text-zinc-500">{history.length} assets in project</span>
+               <span className="text-xs text-zinc-500">{history.length} assets · {storyboard.length} scenes</span>
              </div>
           </div>
           
           <div className="flex items-center space-x-2">
-            <button 
-              onClick={handleOpenKeySelector}
-              className={`flex items-center space-x-2 px-3 py-2 rounded-md transition-all text-xs font-medium border ${hasKey ? 'text-zinc-400 border-zinc-800 hover:bg-zinc-800' : 'bg-amber-600/10 text-amber-500 border-amber-600/30 hover:bg-amber-600/20'}`}
-              title="Configure API Key"
-            >
+            <button onClick={handleOpenKeySelector} className={`flex items-center space-x-2 px-3 py-2 rounded-md transition-all text-xs font-medium border ${hasKey ? 'text-zinc-400 border-zinc-800 hover:bg-zinc-800' : 'bg-amber-600/10 text-amber-500 border-amber-600/30 hover:bg-amber-600/20'}`} title="Configure API Key">
               <Key className="w-4 h-4" />
               <span className="hidden lg:inline">{hasKey ? 'API Key Configured' : 'Select API Key'}</span>
             </button>
-
             <div className="h-4 w-[1px] bg-zinc-800 mx-1" />
-
-            <button 
-              onClick={handleNewProject}
-              className="flex items-center space-x-2 px-3 py-2 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors text-xs font-medium"
-            >
-              <FilePlus className="w-4 h-4" />
-              <span className="hidden sm:inline">New</span>
-            </button>
+            <button onClick={handleNewProject} className="flex items-center space-x-2 px-3 py-2 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors text-xs font-medium"><FilePlus className="w-4 h-4" /><span className="hidden sm:inline">New</span></button>
+            <button onClick={() => fileInputRef.current?.click()} className="flex items-center space-x-2 px-3 py-2 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors text-xs font-medium"><HardDrive className="w-4 h-4" /><span className="hidden sm:inline">Open</span></button>
+            <button onClick={() => setIsSaveModalOpen(true)} className="flex items-center space-x-2 px-3 py-2 rounded-md bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 transition-colors text-xs font-medium"><Save className="w-4 h-4" /><span className="hidden sm:inline">Save</span></button>
             <div className="h-4 w-[1px] bg-zinc-800 mx-1" />
-            <button 
-              onClick={handleOpenLocalClick}
-              className="flex items-center space-x-2 px-3 py-2 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors text-xs font-medium"
-            >
-              <HardDrive className="w-4 h-4" />
-              <span className="hidden sm:inline">Open Local</span>
-            </button>
-            <div className="h-4 w-[1px] bg-zinc-800 mx-1" />
-            <button 
-              onClick={handleSaveClick}
-              className="flex items-center space-x-2 px-3 py-2 rounded-md bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 transition-colors text-xs font-medium"
-            >
-              <Save className="w-4 h-4" />
-              <span className="hidden sm:inline">Save Project</span>
-            </button>
+            <button onClick={() => setIsHistoryOpen(!isHistoryOpen)} className={`p-2 rounded-md transition-colors ${isHistoryOpen ? 'text-white bg-zinc-800' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}><PanelRight className="w-5 h-5" /></button>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-8 scroll-smooth">
-          {error && (
-            <div className="mb-6 rounded-lg bg-red-950/30 border border-red-900/50 p-4 animate-in fade-in slide-in-from-top-2 shadow-xl shadow-red-950/20">
-              <div className="flex items-start">
-                <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 mr-3 flex-shrink-0" />
-                <div className="flex-1">
-                  <h3 className="text-sm font-bold text-red-200 uppercase tracking-wider">Operation Error</h3>
-                  <p className="mt-1 text-sm text-red-100/80 leading-relaxed">{error}</p>
-                  
-                  {error.includes("PERMISSION_DENIED") && (
-                     <div className="mt-4 p-3 bg-zinc-950/50 rounded-lg border border-red-900/30 space-y-3">
-                        <p className="text-xs text-red-200/70">
-                          This model requires a <strong>billing-enabled API key</strong> from a paid Google Cloud Project. 
-                          The currently used key is either insufficient or invalid for high-fidelity generation.
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          <button 
-                            onClick={handleOpenKeySelector}
-                            className="flex items-center space-x-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs font-bold transition-colors"
-                          >
-                            <Key className="w-3 h-3" />
-                            <span>Switch API Key</span>
-                          </button>
-                          <a 
-                            href="https://ai.google.dev/gemini-api/docs/billing" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex items-center space-x-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-xs transition-colors"
-                          >
-                            <span>Billing Docs</span>
-                          </a>
-                        </div>
-                     </div>
-                  )}
-                </div>
-                <button 
-                  onClick={() => setError(null)} 
-                  className="ml-3 text-red-400 hover:text-red-200 transition-colors p-1"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          <section className="mb-12">
-            {currentImage ? (
-              <div className="relative group rounded-xl overflow-hidden shadow-2xl border border-zinc-800 bg-zinc-900">
-                <div className="w-full flex items-center justify-center bg-zinc-950/50 relative" style={{ minHeight: '400px', maxHeight: '70vh' }}>
-                   <img 
-                      src={currentImage.url} 
-                      alt={currentImage.prompt} 
-                      className="max-w-full max-h-[70vh] object-contain shadow-lg"
-                    />
-                </div>
-                <div className="absolute top-4 right-4 flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <a 
-                      href={currentImage.url} 
-                      download={`musebox-${currentImage.id}.png`}
-                      className="p-2 bg-black/60 backdrop-blur-md rounded-lg text-white hover:bg-indigo-600 transition-colors"
-                    >
-                      <Download className="w-5 h-5" />
-                    </a>
-                </div>
-                <div className="p-4 border-t border-zinc-800 bg-zinc-900">
-                  <p className="text-zinc-100 font-medium mb-1">{currentImage.prompt}</p>
-                  <div className="flex flex-wrap gap-2 text-xs text-zinc-500 items-center">
-                    <button 
-                      onClick={() => applyAndToggleLock('modelId', currentImage.config.modelId)}
-                      className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 hover:text-white transition-colors"
-                    >
-                      {currentImage.config.modelId}
-                    </button>
-                    <button 
-                      onClick={() => applyAndToggleLock('aspectRatio', currentImage.config.aspectRatio)}
-                      className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 hover:text-white transition-colors"
-                    >
-                      {currentImage.config.aspectRatio}
-                    </button>
-                    {currentImage.config.seed !== undefined && (
-                      <button 
-                        onClick={() => applyAndToggleLock('seed', currentImage.config.seed)}
-                        className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 hover:text-white transition-colors"
-                      >
-                        Seed: {currentImage.config.seed}
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setIsStyleModalOpen(true)}
-                      className="px-2 py-0.5 ml-2 border border-dashed border-zinc-600 rounded text-zinc-400 hover:text-white hover:border-zinc-400 hover:bg-zinc-800 transition-colors flex items-center"
-                    >
-                      <Plus className="w-3 h-3 mr-1" />
-                      Style
-                    </button>
+        <div className="flex-1 flex overflow-hidden">
+          <main className="flex-1 overflow-y-auto p-8 scroll-smooth flex flex-col items-center">
+            <div className="w-full max-w-5xl">
+              {error && (
+                <div className="mb-6 rounded-lg bg-red-950/30 border border-red-900/50 p-4 shadow-xl">
+                  <div className="flex items-start">
+                    <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 mr-3 flex-shrink-0" />
+                    <div className="flex-1">
+                      <h3 className="text-sm font-bold text-red-200 uppercase tracking-wider">Operation Error</h3>
+                      <p className="mt-1 text-sm text-red-100/80 leading-relaxed">{error}</p>
+                    </div>
+                    <button onClick={() => setError(null)} className="ml-3 text-red-400 hover:text-red-200 transition-colors p-1"><X className="w-5 h-5" /></button>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-96 border-2 border-dashed border-zinc-800 rounded-xl bg-zinc-900/20 text-zinc-500 group">
-                 <div className="w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center mb-4 text-2xl group-hover:scale-110 transition-transform">✨</div>
-                 <h3 className="text-lg font-medium text-zinc-300 mb-2 tracking-tight">Studio Empty</h3>
-                 <p className="max-w-md text-center text-sm leading-relaxed text-zinc-500">
-                    Configure parameters on the left and click generate to begin creation. 
-                    {!hasKey && <span className="block mt-2 text-amber-500 font-medium italic">High-fidelity models will require an API key from a paid project.</span>}
-                 </p>
-              </div>
-            )}
-          </section>
+              )}
 
-          <section>
-            <div className="flex items-center justify-between mb-6">
-               <h3 className="text-lg font-semibold text-white tracking-tight flex items-center">
-                 <Sparkles className="w-4 h-4 mr-2 text-indigo-400" />
-                 Recent Generations
-               </h3>
+              <section className="mb-12">
+                {currentImage ? (
+                  <div className="relative group rounded-xl overflow-hidden shadow-2xl border border-zinc-800 bg-zinc-900">
+                    <div className="w-full flex items-center justify-center bg-zinc-950/50 relative" style={{ minHeight: '400px', maxHeight: '60vh' }}>
+                       <img src={currentImage.url} alt={currentImage.prompt} className="max-w-full max-h-[60vh] object-contain shadow-lg" />
+                    </div>
+                    {/* Fixed Download Button: Removed backdrop-blur-md to prevent composite artifacts and ensured high visibility */}
+                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-all duration-200 z-20">
+                        <a 
+                          href={currentImage.url} 
+                          download={`musebox-${currentImage.id}.png`} 
+                          className="flex items-center justify-center p-2.5 bg-zinc-950/90 border border-zinc-800 rounded-lg text-white hover:bg-indigo-600 hover:border-indigo-500 transition-all shadow-2xl group/btn"
+                          title="Download Asset"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Download className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
+                        </a>
+                    </div>
+                    <div className="p-4 border-t border-zinc-800 bg-zinc-900">
+                      <p className="text-zinc-100 font-medium mb-1">{currentImage.prompt}</p>
+                      <div className="flex flex-wrap gap-2 text-xs text-zinc-500 items-center">
+                        <button onClick={() => applyAndToggleLock('modelId', currentImage.config.modelId)} className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 hover:text-white transition-colors">{currentImage.config.modelId}</button>
+                        <button onClick={() => applyAndToggleLock('aspectRatio', currentImage.config.aspectRatio)} className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 hover:text-white transition-colors">{currentImage.config.aspectRatio}</button>
+                        <button onClick={() => setIsStyleModalOpen(true)} className="px-2 py-0.5 ml-2 border border-dashed border-zinc-600 rounded text-zinc-400 hover:text-white hover:border-zinc-400 hover:bg-zinc-800 transition-colors flex items-center"><Plus className="w-3 h-3 mr-1" />Style</button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-96 border-2 border-dashed border-zinc-800 rounded-xl bg-zinc-900/20 text-zinc-500">
+                     <div className="w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center mb-4 text-2xl">✨</div>
+                     <h3 className="text-lg font-medium text-zinc-300 mb-2">Studio Empty</h3>
+                     <p className="max-w-md text-center text-sm leading-relaxed">Configure parameters on the left and click generate to begin creation.</p>
+                  </div>
+                )}
+              </section>
             </div>
-            <Gallery images={history} onSelect={setCurrentImage} onDelete={handleDelete} />
-          </section>
+          </main>
+
+          {isHistoryOpen && (
+            <aside className="w-80 flex-shrink-0 bg-zinc-900 border-l border-zinc-800 flex flex-col overflow-hidden">
+              <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center"><History className="w-3 h-3 mr-2 text-indigo-400" />Asset Browser</h3>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 scroll-smooth">
+                <Gallery images={history} onSelect={setCurrentImage} onDelete={handleDeleteHistory} />
+              </div>
+            </aside>
+          )}
         </div>
-      </main>
+
+        {/* STORYBOARD BOTTOM SECTION */}
+        <section className="h-72 border-t border-zinc-800 bg-zinc-950 flex flex-col overflow-hidden">
+          <div className="px-6 py-2 border-b border-zinc-800/50 bg-zinc-900/30 flex items-center justify-between">
+            <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center">
+              <Film className="w-3 h-3 mr-2 text-purple-400" />
+              Production Storyboard
+            </h3>
+            <button onClick={handleAddStoryboardItem} className="flex items-center space-x-1.5 px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[10px] font-bold transition-all uppercase tracking-wider">
+              <Plus className="w-3 h-3" />
+              <span>Add Scene</span>
+            </button>
+          </div>
+          <div className="flex-1 overflow-x-auto custom-scrollbar">
+            <Storyboard items={storyboard} onUpdate={handleUpdateStoryboardItem} onAdd={handleAddStoryboardItem} onDelete={handleDeleteStoryboardItem} />
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
