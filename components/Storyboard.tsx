@@ -57,7 +57,7 @@ const Storyboard: React.FC<StoryboardProps> = ({ items, onUpdate, onAdd, onDelet
         return (
           <div 
             key={item.id} 
-            className={`flex-shrink-0 w-[420px] bg-zinc-900 border ${dragOverId === item.id ? 'border-indigo-500 scale-[1.01] bg-zinc-800' : 'border-zinc-800'} rounded-xl p-4 flex flex-col hover:border-zinc-700 transition-all shadow-xl animate-in fade-in slide-in-from-right-4 h-full`}
+            className={`flex-shrink-0 w-[360px] bg-zinc-900 border ${dragOverId === item.id ? 'border-indigo-500 scale-[1.01] bg-zinc-800' : 'border-zinc-800'} rounded-xl p-4 flex flex-col hover:border-zinc-700 transition-all shadow-xl animate-in fade-in slide-in-from-right-4 h-full`}
             onDragOver={handleDragOver}
             onDragEnter={() => setDragOverId(item.id)}
             onDragLeave={() => setDragOverId(null)}
@@ -84,8 +84,8 @@ const Storyboard: React.FC<StoryboardProps> = ({ items, onUpdate, onAdd, onDelet
 
             {/* Main Content Area - Horizontal Layout */}
             <div className="flex flex-row space-x-4 flex-1 min-h-0">
-              {/* Visual Thumbnail */}
-              <div className="w-64 aspect-video bg-zinc-950 rounded-lg border border-zinc-800 border-dashed flex-shrink-0 flex items-center justify-center overflow-hidden relative group cursor-pointer hover:bg-zinc-800/20 transition-colors">
+              {/* Visual Thumbnail - Constrained to 1:1 Square */}
+              <div className="w-48 aspect-square bg-zinc-950 rounded-lg border border-zinc-800 border-dashed flex-shrink-0 flex items-center justify-center overflow-hidden relative group cursor-pointer hover:bg-zinc-800/20 transition-colors">
                 {item.imageUrl ? (
                   <>
                     <img src={item.imageUrl} alt="Scene" className="w-full h-full object-cover" />
@@ -128,7 +128,7 @@ const Storyboard: React.FC<StoryboardProps> = ({ items, onUpdate, onAdd, onDelet
         onDragEnter={() => setIsAppending(true)}
         onDragLeave={() => setIsAppending(false)}
         onDrop={handleDropOnAppend}
-        className={`flex-shrink-0 w-[420px] h-full border-2 border-dashed ${isAppending ? 'border-purple-500 bg-purple-500/10 scale-[1.01]' : 'border-zinc-800'} rounded-xl flex flex-col items-center justify-center text-zinc-700 hover:text-zinc-500 hover:border-zinc-700 hover:bg-zinc-900/30 transition-all group`}
+        className={`flex-shrink-0 w-[360px] h-full border-2 border-dashed ${isAppending ? 'border-purple-500 bg-purple-500/10 scale-[1.01]' : 'border-zinc-800'} rounded-xl flex flex-col items-center justify-center text-zinc-700 hover:text-zinc-500 hover:border-zinc-700 hover:bg-zinc-900/30 transition-all group`}
       >
         <div className="flex flex-col items-center space-y-2">
           <Plus className={`w-8 h-8 transition-all ${isAppending ? 'scale-125 text-purple-400' : 'group-hover:scale-110 group-hover:text-indigo-500'}`} />
