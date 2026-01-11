@@ -131,27 +131,25 @@ function App() {
     }
   }, [history, storyboard, projectName, config]);
 
-  const handleGenerate = async (overrideConfig?: GenerationConfig) => {
+  const handleGenerate = async (overrideConfig?: GenerationConfig, forceDemo: boolean = false) => {
     const activeConfig = overrideConfig || config;
-    if (!activeConfig.prompt.trim()) return;
-
-    if (!hasKey && (activeConfig.modelId === ModelId.GEMINI_3_PRO_IMAGE)) {
-      setError("An API key is required for Gemini 3 Pro. Please select one in the header.");
-      return;
-    }
+    if (!activeConfig.prompt.trim() && !forceDemo) return;
 
     setIsGenerating(true);
     setError(null);
 
     try {
-      const result = await generateImage(activeConfig);
+      // Use mock logic if no key or forceDemo
+      const isActuallyDemo = forceDemo || !hasKey || !process.env.API_KEY;
+      const result = await generateImage(activeConfig, isActuallyDemo);
+      
       const finalConfig = { ...activeConfig };
       if (result.modelId) finalConfig.modelId = result.modelId;
 
       const newImage: GeneratedImage = {
         id: crypto.randomUUID(),
         url: result.url,
-        prompt: activeConfig.prompt,
+        prompt: activeConfig.prompt || "Demo generated asset",
         config: finalConfig,
         timestamp: Date.now(),
       };
@@ -188,7 +186,7 @@ function App() {
     };
 
     setConfig(newConfig);
-    handleGenerate(newConfig);
+    handleGenerate(newConfig, true); // Always demo for random spawn to save tokens
   };
 
   const handleDeleteHistory = (id: string) => {
@@ -374,6 +372,8 @@ function App() {
     e.dataTransfer.setData('image-url', imageUrl);
   };
 
+  const isDemoModeActive = !hasKey || !process.env.API_KEY || process.env.API_KEY === 'YOUR_API_KEY';
+
   return (
     <div className="flex h-screen bg-black text-zinc-100 overflow-hidden font-sans">
       <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
@@ -381,20 +381,31 @@ function App() {
       <StyleModal isOpen={isStyleModalOpen} onClose={() => setIsStyleModalOpen(false)} onConfirm={handleSaveStyle} />
 
       {isSidebarOpen && (
-        <aside className="w-80 flex-shrink-0 z-50">
-          <Controls 
-            config={config} 
-            onChange={setConfig} 
-            onGenerate={() => handleGenerate()} 
-            onRandomSpawn={handleRandomSpawn}
-            onToggleLockAll={handleToggleLockAll}
-            isGenerating={isGenerating}
-            lockedKeys={lockedKeys}
-            onToggleLock={toggleLock}
-            savedStyles={styleBook}
-            onSelectStyle={handleApplyStyle}
-            onClose={() => setIsSidebarOpen(false)}
-          />
+        <aside className="w-80 flex-shrink-0 z-50 flex flex-col h-full bg-zinc-900">
+          <div className="flex-1 overflow-y-auto">
+            <Controls 
+              config={config} 
+              onChange={setConfig} 
+              onGenerate={() => handleGenerate()} 
+              onRandomSpawn={handleRandomSpawn}
+              onToggleLockAll={handleToggleLockAll}
+              isGenerating={isGenerating}
+              lockedKeys={lockedKeys}
+              onToggleLock={toggleLock}
+              savedStyles={styleBook}
+              onSelectStyle={handleApplyStyle}
+              onClose={() => setIsSidebarOpen(false)}
+            />
+          </div>
+          {isDemoModeActive && (
+            <div className="px-6 py-3 bg-indigo-600/10 border-t border-indigo-500/20 flex items-center justify-between">
+              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest flex items-center">
+                <Sparkles className="w-3 h-3 mr-2" />
+                Portfolio Mode Active
+              </span>
+              <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+            </div>
+          )}
         </aside>
       )}
 

@@ -89,6 +89,7 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, onRan
   );
 
   const isProModel = config.modelId === ModelId.GEMINI_3_PRO_IMAGE;
+  const isDemoActive = !process.env.API_KEY || process.env.API_KEY === 'YOUR_API_KEY';
 
   return (
     <div className="flex flex-col h-full bg-zinc-900 border-r border-zinc-800 w-full p-6 overflow-y-auto custom-scrollbar">
@@ -108,7 +109,7 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, onRan
           className="flex-1 flex items-center justify-center space-x-2 py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl font-black text-xs tracking-widest uppercase shadow-lg shadow-indigo-500/10 transition-all active:scale-[0.98] disabled:opacity-50"
         >
           <Zap className="w-3.5 h-3.5 fill-current" />
-          <span>Random Spawn</span>
+          <span>DEMO IMAGE</span>
         </button>
         <button
           onClick={onToggleLockAll}
@@ -251,8 +252,8 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, onRan
       </div>
 
       <div className="pt-6 mt-6 border-t border-zinc-800">
-        <Button onClick={onGenerate} isLoading={isGenerating} className="w-full py-4 text-xs font-black uppercase tracking-widest rounded-xl shadow-xl shadow-indigo-900/10 transition-all active:scale-[0.99]" disabled={!config.prompt.trim()}>
-          Generate Scene
+        <Button onClick={onGenerate} isLoading={isGenerating} className="w-full py-4 text-xs font-black uppercase tracking-widest rounded-xl shadow-xl shadow-indigo-900/10 transition-all active:scale-[0.99]" disabled={!config.prompt.trim() && !isDemoActive}>
+          {isDemoActive ? 'Preview Generation' : 'Generate Scene'}
         </Button>
       </div>
     </div>
