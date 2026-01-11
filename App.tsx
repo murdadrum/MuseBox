@@ -70,7 +70,7 @@ function App() {
   
   const [hasKey, setHasKey] = useState<boolean>(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(true);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   
   const [projectName, setProjectName] = useState(DEFAULT_PROJECT_NAME);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
