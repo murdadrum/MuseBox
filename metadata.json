@@ -1,5 +1,6 @@
 {
   "name": "MuseBox",
   "description": "A high-fidelity media production studio dashboard for generating professional-grade imagery using Google Gemini and Imagen models.",
+  "thumbnail": "preview.png",
   "requestFramePermissions": []
 }
