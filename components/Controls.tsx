@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, FocalLength, GenerationConfig, StylePreset } from '../types';
+import { ModelId, AspectRatio, Resolution, Perspective, Lighting, Lens, GenerationConfig, StylePreset } from '../types';
 import Button from './Button';
-import { Camera, Expand, Sparkles, Image as ImageIcon, Box, Palette, Sun, Aperture, ZoomIn, Ban, Lock, Unlock, Bookmark, X, Upload, Loader2, Dices, Zap } from 'lucide-react';
+import { Camera, Expand, Sparkles, Image as ImageIcon, Box, Palette, Sun, Aperture, Lock, Unlock, Bookmark, X, Upload, Loader2, Dices, Zap } from 'lucide-react';
 
 interface ControlsProps {
   config: GenerationConfig;
@@ -156,7 +156,7 @@ const Controls: React.FC<ControlsProps> = ({ config, onChange, onGenerate, onRan
             <textarea
               value={config.prompt}
               onChange={(e) => handleChange('prompt', e.target.value)}
-              placeholder="Visual narrative description... (e.g. 'A cat, avoid: water')"
+              placeholder="Visual narrative description..."
               className="w-full h-24 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-600 outline-none resize-none"
             />
           </div>

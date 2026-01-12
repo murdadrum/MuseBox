@@ -139,7 +139,6 @@ function App() {
     setError(null);
 
     try {
-      // Use mock logic if no key or forceDemo
       const isActuallyDemo = forceDemo || !hasKey || !process.env.API_KEY;
       const result = await generateImage(activeConfig, isActuallyDemo);
       
@@ -186,7 +185,7 @@ function App() {
     };
 
     setConfig(newConfig);
-    handleGenerate(newConfig, true); // Always demo for random spawn to save tokens
+    handleGenerate(newConfig, true);
   };
 
   const handleDeleteHistory = (id: string) => {
@@ -275,7 +274,6 @@ function App() {
     const pageHeight = doc.internal.pageSize.getHeight();
     let currentY = 20;
 
-    // Header
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
     doc.text("MUSEBOX STORYBOARD", 20, currentY);
@@ -296,25 +294,21 @@ function App() {
       const item = storyboard[i];
       const sceneLabel = item.name || `SCENE ${String(i + 1).padStart(2, '0')}`;
 
-      // Check if we need a new page
       if (currentY > pageHeight - 60) {
         doc.addPage();
         currentY = 20;
       }
 
-      // Scene Title
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
       doc.setTextColor(0);
       doc.text(sceneLabel, 20, currentY);
       currentY += 8;
 
-      // Image
       if (item.imageUrl) {
         try {
           doc.addImage(item.imageUrl, 'PNG', 20, currentY, 50, 50);
         } catch (e) {
-          console.error("Could not add image to PDF", e);
           doc.rect(20, currentY, 50, 50);
           doc.text("Image missing", 25, currentY + 25);
         }
@@ -325,14 +319,13 @@ function App() {
         doc.text("AWAITING FRAME", 25, currentY + 25);
       }
 
-      // Script/Notes
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       const scriptText = item.script || "No notes provided for this scene.";
       const splitText = doc.splitTextToSize(scriptText, pageWidth - 85);
       doc.text(splitText, 75, currentY + 5);
 
-      currentY += 60; // Advance for next scene
+      currentY += 60;
     }
 
     doc.save(`${projectName.replace(/\s+/g, '-').toLowerCase()}-board.pdf`);
@@ -515,7 +508,6 @@ function App() {
           )}
         </div>
 
-        {/* STORYBOARD BOTTOM SECTION */}
         <section className="h-72 border-t border-zinc-800 bg-zinc-950 flex flex-col overflow-hidden flex-shrink-0">
           <div className="px-6 py-2 border-b border-zinc-800/50 bg-zinc-900/30 flex items-center justify-between">
             <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center">
