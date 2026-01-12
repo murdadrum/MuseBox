@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import Controls from './components/Controls';
 import Gallery from './components/Gallery';
@@ -58,6 +59,17 @@ const RANDOM_NEGATIVES = [
 
 const DEFAULT_PROJECT_NAME = "Untitled Project";
 
+// Fix: Redefining AIStudio interface and augmenting Window to match existing global definitions
+declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+  interface Window {
+    aistudio: AIStudio;
+  }
+}
+
 function App() {
   const [config, setConfig] = useState<GenerationConfig>(DEFAULT_CONFIG);
   const [lockedKeys, setLockedKeys] = useState<string[]>([]);
@@ -69,7 +81,7 @@ function App() {
   const [styleBook, setStyleBook] = useState<StylePreset[]>([]);
   
   const [hasKey, setHasKey] = useState<boolean>(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Default view with left panel collapsed
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   
   const [projectName, setProjectName] = useState(DEFAULT_PROJECT_NAME);
@@ -89,9 +101,15 @@ function App() {
 
   const handleOpenKeySelector = async () => {
     if (window.aistudio) {
-      await window.aistudio.openSelectKey();
-      setHasKey(true);
-      setError(null);
+      try {
+        await window.aistudio.openSelectKey();
+        setHasKey(true);
+        setError(null);
+      } catch (err) {
+        console.error("Failed to open key selector", err);
+      }
+    } else {
+      console.warn("aistudio object not found in window");
     }
   };
 
@@ -139,7 +157,7 @@ function App() {
     setError(null);
 
     try {
-      const isActuallyDemo = forceDemo || !hasKey || !process.env.API_KEY;
+      const isActuallyDemo = forceDemo || !hasKey || !process.env.API_KEY || process.env.API_KEY === 'YOUR_API_KEY';
       const result = await generateImage(activeConfig, isActuallyDemo);
       
       const finalConfig = { ...activeConfig };
@@ -158,7 +176,9 @@ function App() {
     } catch (err: any) {
       const msg = err.message || "Failed to generate image.";
       setError(msg);
-      if (msg.includes("PERMISSION_DENIED")) setHasKey(false);
+      if (msg.includes("PERMISSION_DENIED")) {
+        setHasKey(false);
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -374,7 +394,7 @@ function App() {
       <StyleModal isOpen={isStyleModalOpen} onClose={() => setIsStyleModalOpen(false)} onConfirm={handleSaveStyle} />
 
       {isSidebarOpen && (
-        <aside className="w-80 flex-shrink-0 z-50 flex flex-col h-full bg-zinc-900">
+        <aside className="w-80 flex-shrink-0 z-50 flex flex-col h-full bg-zinc-900 border-r border-zinc-800 animate-in slide-in-from-left duration-300">
           <div className="flex-1 overflow-y-auto">
             <Controls 
               config={config} 
@@ -405,7 +425,13 @@ function App() {
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         <header className="h-16 border-b border-zinc-800 bg-zinc-950/50 backdrop-blur-sm flex items-center justify-between px-6 z-10">
           <div className="flex items-center space-x-4">
-             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 -ml-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-md transition-colors"><PanelLeft className="w-5 h-5" /></button>
+             <button 
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+                className={`p-2 -ml-2 rounded-md transition-all group flex items-center justify-center ${isSidebarOpen ? 'bg-purple-600/20 text-purple-400' : 'text-purple-500 hover:bg-zinc-800'}`}
+                title={isSidebarOpen ? "Close Sidebar" : "Open Sidebar"}
+             >
+                <PanelLeft className={`w-5 h-5 transition-transform duration-300 ${!isSidebarOpen ? 'scale-110' : ''}`} />
+             </button>
              <div className="flex flex-col">
                <h2 className="text-sm font-medium text-white tracking-wide">{projectName}</h2>
                <span className="text-xs text-zinc-500">{history.length} assets · {storyboard.length} scenes</span>
@@ -413,8 +439,12 @@ function App() {
           </div>
           
           <div className="flex items-center space-x-2">
-            <button onClick={handleOpenKeySelector} className={`flex items-center space-x-2 px-3 py-2 rounded-md transition-all text-xs font-medium border ${hasKey ? 'text-zinc-400 border-zinc-800 hover:bg-zinc-800' : 'bg-amber-600/10 text-amber-500 border-amber-600/30 hover:bg-amber-600/20'}`} title="Configure API Key">
-              <Key className="w-4 h-4" />
+            <button 
+                onClick={handleOpenKeySelector} 
+                className={`flex items-center space-x-2 px-3 py-2 rounded-md transition-all text-xs font-bold border shadow-sm group ${hasKey ? 'text-zinc-400 border-zinc-800 hover:bg-zinc-800' : 'bg-orange-600/20 text-orange-500 border-orange-600/40 hover:bg-orange-600/30 scale-105 ring-2 ring-orange-600/20'}`} 
+                title="Configure API Key"
+            >
+              <Key className={`w-4 h-4 transition-transform group-hover:rotate-12 ${!hasKey ? 'animate-bounce' : ''}`} />
               <span className="hidden lg:inline">{hasKey ? 'API Key Configured' : 'Select API Key'}</span>
             </button>
             <div className="h-4 w-[1px] bg-zinc-800 mx-1" />
@@ -422,15 +452,31 @@ function App() {
             <button onClick={() => fileInputRef.current?.click()} className="flex items-center space-x-2 px-3 py-2 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors text-xs font-medium"><HardDrive className="w-4 h-4" /><span className="hidden sm:inline">Open</span></button>
             <button onClick={() => setIsSaveModalOpen(true)} className="flex items-center space-x-2 px-3 py-2 rounded-md bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 transition-colors text-xs font-medium"><Save className="w-4 h-4" /><span className="hidden sm:inline">Save</span></button>
             <div className="h-4 w-[1px] bg-zinc-800 mx-1" />
-            <button onClick={() => setIsHistoryOpen(!isHistoryOpen)} className={`p-2 rounded-md transition-colors ${isHistoryOpen ? 'text-white bg-zinc-800' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}><PanelRight className="w-5 h-5" /></button>
+            <button 
+                onClick={() => setIsHistoryOpen(!isHistoryOpen)} 
+                className={`p-2 rounded-md transition-all group ${isHistoryOpen ? 'text-purple-400 bg-purple-600/20' : 'text-purple-500 hover:text-white hover:bg-zinc-800'}`}
+                title={isHistoryOpen ? "Close Asset Browser" : "Open Asset Browser"}
+            >
+                <PanelRight className={`w-5 h-5 transition-transform duration-300 ${!isHistoryOpen ? 'scale-110' : ''}`} />
+            </button>
           </div>
         </header>
 
         <div className="flex-1 flex overflow-hidden">
-          <main className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth flex flex-col items-center">
+          <main className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth flex flex-col items-center relative">
+             {/* Background branding logo when sidebar is closed */}
+             {!isSidebarOpen && (
+                 <div className="absolute top-8 left-8 flex items-center space-x-2 opacity-50 select-none pointer-events-none">
+                     <div className="w-6 h-6 bg-indigo-600 rounded flex items-center justify-center">
+                         <Sparkles className="text-white w-4 h-4" />
+                     </div>
+                     <h1 className="text-lg font-black tracking-tight text-white">MuseBox</h1>
+                 </div>
+             )}
+
             <div className="w-full max-w-5xl h-full flex flex-col">
               {error && (
-                <div className="mb-6 rounded-lg bg-red-950/30 border border-red-900/50 p-4 shadow-xl flex-shrink-0">
+                <div className="mb-6 rounded-lg bg-red-950/30 border border-red-900/50 p-4 shadow-xl flex-shrink-0 animate-in fade-in zoom-in-95">
                   <div className="flex items-start">
                     <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 mr-3 flex-shrink-0" />
                     <div className="flex-1">
@@ -442,16 +488,16 @@ function App() {
                 </div>
               )}
 
-              <section className="flex-1 min-h-0 mb-8">
+              <section className="flex-1 min-h-0 mb-8 flex flex-col">
                 {currentImage ? (
                   <div 
-                    className="h-full flex flex-col group rounded-xl overflow-hidden shadow-2xl border border-zinc-800 bg-zinc-900 cursor-grab active:cursor-grabbing"
+                    className="flex-1 flex flex-col group rounded-xl overflow-hidden shadow-2xl border border-zinc-800 bg-zinc-900 cursor-grab active:cursor-grabbing transition-all hover:border-zinc-700"
                     draggable
                     onDragStart={(e) => handleDragStart(e, currentImage.url)}
                   >
                     <div className="flex-1 flex items-center justify-center bg-zinc-950/50 relative overflow-hidden">
-                       <img src={currentImage.url} alt={currentImage.prompt} className="max-w-full max-h-full object-contain shadow-lg" />
-                       <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-all duration-200 z-20 flex space-x-2">
+                       <img src={currentImage.url} alt={currentImage.prompt} className="max-w-full max-h-full object-contain shadow-2xl transition-transform duration-700 group-hover:scale-[1.02]" />
+                       <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-all duration-300 z-20 flex space-x-2 translate-y-2 group-hover:translate-y-0">
                           <button 
                             onClick={() => handleAddStoryboardItem(currentImage.url)}
                             className="flex items-center justify-center p-2.5 bg-zinc-950/90 border border-zinc-800 rounded-lg text-white hover:bg-purple-600 hover:border-purple-500 transition-all shadow-2xl group/btn"
@@ -470,7 +516,7 @@ function App() {
                           </a>
                       </div>
                     </div>
-                    <div className="p-4 border-t border-zinc-800 bg-zinc-900 flex-shrink-0">
+                    <div className="p-4 border-t border-zinc-800 bg-zinc-900/80 backdrop-blur-sm flex-shrink-0">
                       <p className="text-zinc-100 font-medium mb-1 truncate">{currentImage.prompt}</p>
                       <div className="flex flex-wrap gap-2 text-xs text-zinc-500 items-center">
                         <button onClick={() => applyAndToggleLock('modelId', currentImage.config.modelId)} className="px-2 py-0.5 border border-zinc-700 rounded bg-zinc-800 hover:bg-zinc-700 hover:text-white transition-colors">{currentImage.config.modelId}</button>
@@ -480,10 +526,20 @@ function App() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-full border-2 border-dashed border-zinc-800 rounded-xl bg-zinc-900/20 text-zinc-500">
-                     <div className="w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center mb-4 text-2xl">✨</div>
-                     <h3 className="text-lg font-medium text-zinc-300 mb-2">Studio Empty</h3>
-                     <p className="max-w-md text-center text-sm leading-relaxed">Configure parameters on the left and click generate to begin creation.</p>
+                  <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-zinc-800 rounded-xl bg-zinc-900/20 text-zinc-500 animate-in fade-in duration-500">
+                     <div className="w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center mb-4 text-2xl shadow-inner border border-zinc-800/50">✨</div>
+                     <h3 className="text-lg font-bold text-zinc-300 mb-2 tracking-tight">Studio Empty</h3>
+                     <p className="max-w-md text-center text-sm leading-relaxed text-zinc-500">
+                         {isSidebarOpen ? "Configure parameters on the left and click generate to begin creation." : "Open the sidebar panel on the left to start your production."}
+                     </p>
+                     {!isSidebarOpen && (
+                         <button 
+                            onClick={() => setIsSidebarOpen(true)}
+                            className="mt-6 px-4 py-2 bg-purple-600/10 hover:bg-purple-600/20 text-purple-400 border border-purple-600/30 rounded-lg text-xs font-bold transition-all uppercase tracking-widest"
+                         >
+                             Open Controls
+                         </button>
+                     )}
                   </div>
                 )}
               </section>
@@ -491,9 +547,10 @@ function App() {
           </main>
 
           {isHistoryOpen && (
-            <aside className="w-80 flex-shrink-0 bg-zinc-900 border-l border-zinc-800 flex flex-col overflow-hidden">
-              <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center"><History className="w-3 h-3 mr-2 text-indigo-400" />Asset Browser</h3>
+            <aside className="w-80 flex-shrink-0 bg-zinc-900 border-l border-zinc-800 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
+              <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/20">
+                <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center"><History className="w-3 h-3 mr-2 text-purple-400" />Asset Browser</h3>
+                <button onClick={() => setIsHistoryOpen(false)} className="text-zinc-600 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
               </div>
               <div className="flex-1 overflow-y-auto p-4 scroll-smooth">
                 <Gallery 
@@ -535,7 +592,7 @@ function App() {
               </button>
             </div>
           </div>
-          <div className="flex-1 overflow-x-auto custom-scrollbar">
+          <div className="flex-1 overflow-x-auto custom-scrollbar bg-zinc-950/50">
             <Storyboard 
               items={storyboard} 
               onUpdate={handleUpdateStoryboardItem} 
